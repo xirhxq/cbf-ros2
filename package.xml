@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>cbf-ros2</name>
+  <version>0.0.1</version>
+  <description>
+    A ROS 2 wrapper package for my original CMake project "cbf".
+  </description>
+
+  <maintainer email="you@example.com">Your Name</maintainer>
+  <author email="you@example.com">Your Name</author>
+
+  <license>Apache License 2.0</license>
+  
+  <!-- ament_cmake 是最常见的 ROS 2 构建方式 -->
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <!-- 如果你的原项目与 ROS 2 没有代码层面的依赖，那么就不需要声明额外依赖。
+       但是如果你还想链接一些 ROS 2 库，就可以加 <depend>rclcpp</depend> 等。-->
+
+  <export>
+    <!-- 声明这是一个基于 ament_cmake 的包 -->
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
+
