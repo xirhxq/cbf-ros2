@@ -1,0 +1,4 @@
+[submodule "cbf"]
+	path = cbf
+	url = git@github.com:xirhxq/cbf.git
+	branch = mbzirc-simulation
