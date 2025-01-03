@@ -23,8 +23,14 @@ RUN git clone https://github.com/ERGO-Code/HiGHS.git /tmp/HiGHS \
     && rm -rf /tmp/HiGHS \
     && ldconfig
 
-RUN useradd -m -u 1000 -s /bin/bash appuser \
-    && echo "appuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+RUN apt-get update && apt-get install -y \
+    neofetch \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN useradd -m -s /bin/bash appuser \
+    && echo "appuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers \
+    && mkdir -p /home/appuser/cbf_ws/src \
+    && chown -R appuser:appuser /home/appuser
 
 USER appuser
 WORKDIR /home/appuser

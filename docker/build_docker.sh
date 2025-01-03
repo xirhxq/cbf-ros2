@@ -1,11 +1,13 @@
 #!/bin/bash
 set -e
 
-IMAGE_NAME="cbf-ros2:galactic-highs"
+IMAGE_NAME="cbf-ros2"
+DOCKERHUB_USER="xirhxq"
 
-# 切换到脚本所在目录
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "${SCRIPT_DIR}"
 
-# 构建镜像
-docker build -t "${IMAGE_NAME}" -f Dockerfile .
+docker build -t "${IMAGE_NAME}" .
+docker tag "${IMAGE_NAME}" "${DOCKERHUB_USER}/${IMAGE_NAME}"
+docker push "${DOCKERHUB_USER}/${IMAGE_NAME}"
+echo "Built and pushed ${DOCKERHUB_USER}/${IMAGE_NAME}"
