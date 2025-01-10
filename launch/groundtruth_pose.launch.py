@@ -8,6 +8,6 @@ def generate_launch_description():
             executable='pose_bridge',
             name='pose_bridge',
             output='screen',
-            arguments=['/world/coast/pose/info', 'quadrotor_1']
+            arguments=['1']
         ),
     ])

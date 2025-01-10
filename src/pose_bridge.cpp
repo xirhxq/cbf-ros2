@@ -54,7 +54,9 @@ public:
     for (int i = 0; i < size_; i++)
     {
       std::string topic_name = ros_pub->get_topic_name();
-      std::string vehicle_name = topic_name.substr(topic_name.rfind("/") + 1, topic_name.length() - topic_name.rfind("/"));
+      size_t firstSlash = topic_name.find('/');
+      size_t secondSlash = topic_name.find('/', firstSlash + 1);
+      std::string vehicle_name = topic_name.substr(firstSlash + 1, secondSlash - firstSlash - 1);
       if (std::string(ign_msg.pose(i).name()) == vehicle_name)
       {
         nav_msgs::msg::Odometry ros_msg;
@@ -98,7 +100,7 @@ int main(int argc, char *argv[])
 {
   if (argc < 2)
   {
-    std::cerr << "Usage: parameter_bridge <ign_topic> <vehicle_name1> <vehicle_name2> ..." << std::endl;
+    std::cerr << "Usage: parameter_bridge <vehicle_numbers> ..." << std::endl;
     return -1;
   }
 
@@ -108,11 +110,15 @@ int main(int argc, char *argv[])
   auto ign_node = std::make_shared<ignition::transport::Node>();
   std::list<BridgeIgnToRos2Handles> ign_to_ros2_handles;
 
-  std::string ign_topic_name = argv[1];
-  for (int i = 2; i < argc; ++i)
+  std::string ign_topic_name("/world/coast/pose/info");
+
+  size_t vehicle_numbers = std::stoi(argv[1]);
+  printf("Creating %zu vehicle pose bridges\n", vehicle_numbers);
+  for (size_t i = 1; i <= vehicle_numbers; ++i)
   {
-    std::string vehicle_name = std::string(argv[i]);
-    std::string ros_topic_name = std::string("/pose/groundtruth/") + vehicle_name;
+    std::string vehicle_name = std::string("uav_") + std::to_string(i);
+    std::string ros_topic_name = vehicle_name + std::string("/pose/groundtruth");
+    printf("Creating ROS 2 topic [%s]\n", ros_topic_name.c_str());
 
     try
     {
