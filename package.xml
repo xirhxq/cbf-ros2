@@ -6,19 +6,22 @@
     A ROS 2 wrapper package for my original CMake project "cbf".
   </description>
 
-  <maintainer email="you@example.com">Your Name</maintainer>
-  <author email="you@example.com">Your Name</author>
+  <maintainer email="xirhxq@gmail.com">xirhxq</maintainer>
+  <author email="xirhxq@gmail.com">xirhxq</author>
 
   <license>Apache License 2.0</license>
   
-  <!-- ament_cmake 是最常见的 ROS 2 构建方式 -->
   <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <!-- 如果你的原项目与 ROS 2 没有代码层面的依赖，那么就不需要声明额外依赖。
-       但是如果你还想链接一些 ROS 2 库，就可以加 <depend>rclcpp</depend> 等。-->
+  <depend>rclcpp</depend>
+  <depend>nav_msgs</depend>
+  <depend>ignition-transport11</depend>
+  <depend>ignition-msgs8</depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
 
   <export>
-    <!-- 声明这是一个基于 ament_cmake 的包 -->
     <build_type>ament_cmake</build_type>
   </export>
 </package>
