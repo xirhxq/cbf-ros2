@@ -15,6 +15,8 @@ install(TARGETS Swarm
   DESTINATION lib/${PROJECT_NAME}
 )
 
+include_directories(${CMAKE_SOURCE_DIR}/cbf/external)
+
 set(bridges pose_bridge)
 
 foreach(BRIDGE ${bridges})
