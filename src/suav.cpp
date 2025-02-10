@@ -9,8 +9,8 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "geometry_msgs/msg/twist.hpp"
+#include "geometry_msgs/msg/pose_stamped.hpp"
 #include "sensor_msgs/msg/imu.hpp"
-#include "nav_msgs/msg/odometry.hpp"
 #include "ros_ign_interfaces/msg/dataframe.hpp"
 
 using namespace std::chrono_literals;
@@ -28,11 +28,11 @@ public:
                 last_imu_ = *msg;
             });
 
-        nav_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
+        pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
             "uav_" + id_ + "/pose/groundtruth", 10,
-            [this](const nav_msgs::msg::Odometry::SharedPtr msg) {
+            [this](const geometry_msgs::msg::PoseStamped::SharedPtr msg) {
                 std::lock_guard<std::mutex> lock(data_mutex_);
-                last_odometry_ = *msg;
+                last_pose_ = *msg;
             });
     }
 
@@ -47,22 +47,22 @@ public:
     Eigen::Vector3d get_last_pose() const {
         std::lock_guard<std::mutex> lock(data_mutex_);
         return Eigen::Vector3d(
-            last_odometry_.pose.pose.position.x,
-            last_odometry_.pose.pose.position.y,
-            last_odometry_.pose.pose.position.z);
+            last_pose_.pose.position.x,
+            last_pose_.pose.position.y,
+            last_pose_.pose.position.z);
     }
 
 private:
     rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr vel_cmd_pub_;
 
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
-    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr nav_sub_;
+    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_sub_;
 
     std::string id_;
 
     mutable std::mutex data_mutex_;
     sensor_msgs::msg::Imu last_imu_;
-    nav_msgs::msg::Odometry last_odometry_;
+    geometry_msgs::msg::PoseStamped last_pose_;
 };
 
 class Task {
