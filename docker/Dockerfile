@@ -1,7 +1,9 @@
-FROM ros:galactic
+FROM osrf/mbzirc:mbzirc_sim_latest
 
 ENV DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
+
+USER root
 
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -9,6 +11,7 @@ RUN apt-get update && apt-get install -y \
     git \
     sudo \
     vim \
+    tmuxinator \
     python3-colcon-common-extensions \
     && rm -rf /var/lib/apt/lists/*
 
@@ -27,12 +30,11 @@ RUN apt-get update && apt-get install -y \
     neofetch \
     && rm -rf /var/lib/apt/lists/*
 
-RUN useradd -m -s /bin/bash appuser \
-    && echo "appuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers \
-    && mkdir -p /home/appuser/cbf_ws/src \
-    && chown -R appuser:appuser /home/appuser
+RUN echo "developer ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers \
+    && mkdir -p /home/developer/cbf_ws/src \
+    && chown -R developer:developer /home/developer
 
-USER appuser
-WORKDIR /home/appuser
+USER developer
+WORKDIR /home/developer
 
 CMD ["/bin/bash"]
