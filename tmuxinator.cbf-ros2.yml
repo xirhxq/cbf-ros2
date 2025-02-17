@@ -1,0 +1,13 @@
+# tmuxinator.cbf-ros2.yml
+name: cbf-ros2
+root: .
+tmux_options: -f .tmux.conf
+on_project_start: colcon build
+windows:
+  - suav-and-launch:
+      layout: main-horizontal
+      panes:
+        - '. install/setup.bash; sleep 20; ros2 run cbf-ros2 suav 1'
+        - 'ros2 launch mbzirc_ros competition_local.launch.py ign_args:="-v 4 -r coast.sdf"'
+        - '. install/setup.bash; ros2 launch cbf-ros2 spawn.launch.py'
+        - '. install/setup.bash; ros2 launch cbf-ros2 groundtruth_pose.launch.py'
