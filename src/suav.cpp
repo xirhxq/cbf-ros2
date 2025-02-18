@@ -40,7 +40,11 @@ public:
         rclcpp::spin(shared_from_this());
     }
 
-    void publish_velocity(const geometry_msgs::msg::Twist &cmd) {
+    void publish_velocity(const Eigen::Vector3d &velocity) {
+        geometry_msgs::msg::Twist cmd;
+        cmd.linear.x = velocity.x();
+        cmd.linear.y = velocity.y();
+        cmd.linear.z = velocity.z();
         vel_cmd_pub_->publish(cmd);
     }
 
@@ -165,12 +169,7 @@ private:
             vel = vel.normalized() * max_speed;
         }
         
-        cmd.linear.x = vel.x();
-        cmd.linear.y = vel.y();
-        cmd.linear.z = vel.z();
-        
-        current_cmd_ = cmd;
-        uav_comm_->publish_velocity(cmd);
+        uav_comm_->publish_velocity(vel);
     }
 
     bool is_at_point(const Eigen::Vector3d &current_pose, const Eigen::Vector3d &target_pose, double tolerance = 0.5) {
