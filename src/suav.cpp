@@ -69,6 +69,7 @@ class Task {
 public:
     Task(const std::string &id)
         : id_(id), uav_comm_(std::make_shared<UAVCommNode>(id)), stop_flag_(false) {
+        spawn_point_ = Eigen::Vector3d(-1500.0, 0.0, 0.0);
         takeoff_point_ = Eigen::Vector3d(-1500.0, 0.0, 20.0);
         prepare_point_ = Eigen::Vector3d(-1400.0, 0.0, 20.0);
 
@@ -97,6 +98,7 @@ public:
 
 private:
     enum class State {
+        INIT,
         TAKEOFF,
         PREPARE,
         PERFORM,
@@ -108,6 +110,13 @@ private:
         Eigen::Vector3d current_pose = uav_comm_->get_last_pose();
 
         switch (current_state_) {
+            case State::INIT:
+                if (current_pose.norm() > 1e-3) {
+                    spawn_point_ = current_pose;
+                    takeoff_point_ = spawn_point_ + Eigen::Vector3d(0.0, 0.0, 20.0);
+                    transition_to(State::TAKEOFF);
+                }
+                break;
             case State::TAKEOFF:
                 control_to_point(current_pose, takeoff_point_);
                 if (is_at_point(current_pose, takeoff_point_)) {
@@ -130,37 +139,36 @@ private:
                 }
                 break;
             case State::LAND:
-                control_to_height(current_pose.z(), 0.0);
+                control_to_point(current_pose, spawn_point_);
                 break;
         }
 
         // Log position, state, and control input
         std::lock_guard<std::mutex> lock(log_mutex_);
-        std::cout << "Current Position: " << current_pose.transpose()
-                  << " | State: " << state_to_string(current_state_)
-                  << " | Control: (" << current_cmd_.linear.x << ", "
-                  << current_cmd_.linear.y << ", " << current_cmd_.linear.z << ")" << std::endl;
+        printf(
+            "#%s | Position: %.2f, %.2f, %.2f | State: %s | Control: (%.2f, %.2f, %.2f)\n",
+            id_.c_str(), current_pose.x(), current_pose.y(), current_pose.z(),
+            state_to_string(current_state_).c_str(),
+            current_cmd_.linear.x, current_cmd_.linear.y, current_cmd_.linear.z
+        );
     }
 
     void control_to_point(const Eigen::Vector3d &current_pose, const Eigen::Vector3d &target_pose) {
         geometry_msgs::msg::Twist cmd;
         Eigen::Vector3d delta = target_pose - current_pose;
+        
+        double kp = 0.2;
+        double max_speed = 5.0;
+        Eigen::Vector3d vel = kp * delta;
 
-        double max_speed = 1.0;
-        cmd.linear.x = std::copysign(std::min(std::abs(delta.x()), max_speed), delta.x());
-        cmd.linear.y = std::copysign(std::min(std::abs(delta.y()), max_speed), delta.y());
-        cmd.linear.z = std::copysign(std::min(std::abs(delta.z()), max_speed), delta.z());
-
-        current_cmd_ = cmd;
-        uav_comm_->publish_velocity(cmd);
-    }
-
-    void control_to_height(double current_z, double target_height) {
-        geometry_msgs::msg::Twist cmd;
-        double dz = target_height - current_z;
-        double max_speed = 1.0;
-
-        cmd.linear.z = std::copysign(std::min(std::abs(dz), max_speed), dz);
+        if (vel.norm() > max_speed) {
+            vel = vel.normalized() * max_speed;
+        }
+        
+        cmd.linear.x = vel.x();
+        cmd.linear.y = vel.y();
+        cmd.linear.z = vel.z();
+        
         current_cmd_ = cmd;
         uav_comm_->publish_velocity(cmd);
     }
@@ -177,6 +185,7 @@ private:
 
     std::string state_to_string(State state) {
         switch (state) {
+            case State::INIT: return "INIT";
             case State::TAKEOFF: return "TAKEOFF";
             case State::PREPARE: return "PREPARE";
             case State::PERFORM: return "PERFORM";
@@ -190,8 +199,9 @@ private:
     std::shared_ptr<UAVCommNode> uav_comm_;
     std::atomic<bool> stop_flag_;
     std::thread spin_thread_;
-    State current_state_ = State::TAKEOFF;
+    State current_state_ = State::INIT;
 
+    Eigen::Vector3d spawn_point_;
     Eigen::Vector3d takeoff_point_;
     Eigen::Vector3d prepare_point_;
     geometry_msgs::msg::Twist current_cmd_;
