@@ -15,7 +15,10 @@ install(TARGETS Swarm
   DESTINATION lib/${PROJECT_NAME}
 )
 
-include_directories(${CMAKE_SOURCE_DIR}/cbf/external)
+install(
+  DIRECTORY cbf/config
+  DESTINATION share/${PROJECT_NAME}
+)
 
 set(bridges pose_bridge)
 
@@ -27,11 +30,12 @@ foreach(BRIDGE ${bridges})
   )
 endforeach()
 
-set(tasks suav)
+set(tasks suav cbf_pure)
 
 foreach(TASK ${tasks})
   add_executable(${TASK} src/${TASK}.cpp)
   ament_target_dependencies(${TASK} rclcpp ros_ign_interfaces sensor_msgs nav_msgs std_msgs geometry_msgs)
+  target_link_libraries(${TASK} cbf_deps)
   install(TARGETS ${TASK}
     DESTINATION lib/${PROJECT_NAME}
   )
