@@ -73,9 +73,12 @@ class Task {
 public:
     Task(const std::string &id)
         : id_(id), uav_comm_(std::make_shared<UAVCommNode>(id)), stop_flag_(false) {
+
+        search_height_ = 20.0;
+
         spawn_point_ = Eigen::Vector3d(-1500.0, 0.0, 0.0);
-        takeoff_point_ = Eigen::Vector3d(-1500.0, 0.0, 20.0);
-        prepare_point_ = Eigen::Vector3d(-1400.0, 0.0, 20.0);
+        takeoff_point_ = Eigen::Vector3d(-1500.0, 0.0, search_height_);
+        prepare_point_ = Eigen::Vector3d(-1400.0, 0.0, search_height_);
 
         spin_thread_ = std::thread([this]() {
             uav_comm_->spin();
@@ -134,7 +137,7 @@ private:
                 }
                 break;
             case State::PERFORM:
-                // Add specific task logic here
+                velocity2dControl(current_pose, velocity_cmd_);
                 break;
             case State::BACK:
                 control_to_point(current_pose, takeoff_point_);
@@ -147,7 +150,6 @@ private:
                 break;
         }
 
-        // Log position, state, and control input
         std::lock_guard<std::mutex> lock(log_mutex_);
         printf(
             "#%s | Position: %.2f, %.2f, %.2f | State: %s | Control: (%.2f, %.2f, %.2f)\n",
@@ -158,7 +160,6 @@ private:
     }
 
     void control_to_point(const Eigen::Vector3d &current_pose, const Eigen::Vector3d &target_pose) {
-        geometry_msgs::msg::Twist cmd;
         Eigen::Vector3d delta = target_pose - current_pose;
         
         double kp = 0.2;
@@ -170,6 +171,11 @@ private:
         }
         
         uav_comm_->publish_velocity(vel);
+    }
+
+    void velocity2dControl(const Eigen::Vector3d &current_pose, const Eigen::Vector2d &velocity) {
+        double kp = 0.2;
+        uav_comm_->publish_velocity(Eigen::Vector3d(velocity.x(), velocity.y(), kp * (search_height_ - current_pose.z())));
     }
 
     bool is_at_point(const Eigen::Vector3d &current_pose, const Eigen::Vector3d &target_pose, double tolerance = 0.5) {
@@ -200,10 +206,14 @@ private:
     std::thread spin_thread_;
     State current_state_ = State::INIT;
 
+    double search_height_;
+
     Eigen::Vector3d spawn_point_;
     Eigen::Vector3d takeoff_point_;
     Eigen::Vector3d prepare_point_;
     geometry_msgs::msg::Twist current_cmd_;
+
+    Eigen::Vector2d velocity_cmd_;
 
     std::mutex log_mutex_;
 };
