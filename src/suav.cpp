@@ -5,7 +5,6 @@
 #include <condition_variable>
 #include <iostream>
 #include <csignal>
-#include "Eigen/Dense"
 
 #include "rclcpp/rclcpp.hpp"
 #include "geometry_msgs/msg/twist.hpp"
@@ -14,6 +13,8 @@
 #include "ros_ign_interfaces/msg/dataframe.hpp"
 
 #include "cbf-core.h"
+
+#include "cbf-ros2/Utils.h"
 
 using namespace std::chrono_literals;
 
@@ -200,8 +201,8 @@ private:
         switch (state) {
             case State::INIT: return "INIT";
             case State::TAKEOFF: return "TAKEOFF";
-            case State::PREPARE: return "PREPARE";
-            case State::PERFORM: return "PERFORM";
+            case State::PREPARE: return BLUE + "PREPARE" + RESET;
+            case State::PERFORM: return GREEN + "PERFORM" + RESET;
             case State::BACK: return "BACK";
             case State::LAND: return "LAND";
             default: return "UNKNOWN";
