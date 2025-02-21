@@ -137,7 +137,7 @@ private:
                 }
                 break;
             case State::PERFORM:
-                velocity2dControl(current_pose, velocity_cmd_);
+                velocity2dControl(current_pose, velocity_2d_cmd_);
                 break;
             case State::BACK:
                 control_to_point(current_pose, takeoff_point_);
@@ -150,12 +150,14 @@ private:
                 break;
         }
 
+        uav_comm_->publish_velocity(velocity_cmd_);
+
         std::lock_guard<std::mutex> lock(log_mutex_);
         printf(
             "#%s | Position: %.2f, %.2f, %.2f | State: %s | Control: (%.2f, %.2f, %.2f)\n",
             id_.c_str(), current_pose.x(), current_pose.y(), current_pose.z(),
             state_to_string(current_state_).c_str(),
-            current_cmd_.linear.x, current_cmd_.linear.y, current_cmd_.linear.z
+            velocity_cmd_.x(), velocity_cmd_.y(), velocity_cmd_.z()
         );
     }
 
@@ -170,12 +172,16 @@ private:
             vel = vel.normalized() * max_speed;
         }
         
-        uav_comm_->publish_velocity(vel);
+        velocity_cmd_ = vel;
     }
 
     void velocity2dControl(const Eigen::Vector3d &current_pose, const Eigen::Vector2d &velocity) {
         double kp = 0.2;
-        uav_comm_->publish_velocity(Eigen::Vector3d(velocity.x(), velocity.y(), kp * (search_height_ - current_pose.z())));
+        velocity_cmd_ = Eigen::Vector3d(velocity.x(), velocity.y(), kp * (search_height_ - current_pose.z()));
+    }
+
+    void setVelocity2dCmd(const Eigen::Vector2d &velocity) {
+        velocity_2d_cmd_ = velocity;
     }
 
     bool is_at_point(const Eigen::Vector3d &current_pose, const Eigen::Vector3d &target_pose, double tolerance = 0.5) {
@@ -211,9 +217,9 @@ private:
     Eigen::Vector3d spawn_point_;
     Eigen::Vector3d takeoff_point_;
     Eigen::Vector3d prepare_point_;
-    geometry_msgs::msg::Twist current_cmd_;
-
-    Eigen::Vector2d velocity_cmd_;
+    
+    Eigen::Vector3d velocity_cmd_;
+    Eigen::Vector2d velocity_2d_cmd_;
 
     std::mutex log_mutex_;
 };
