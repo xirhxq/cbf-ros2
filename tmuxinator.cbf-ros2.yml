@@ -2,7 +2,7 @@
 name: cbf-ros2
 root: .
 tmux_options: -f .tmux.conf
-on_project_start: colcon build
+on_project_start: set -e && colcon build
 windows:
   - suav-and-launch:
       layout: main-horizontal
