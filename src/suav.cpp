@@ -13,6 +13,8 @@
 #include "sensor_msgs/msg/imu.hpp"
 #include "ros_ign_interfaces/msg/dataframe.hpp"
 
+#include "cbf-core.h"
+
 using namespace std::chrono_literals;
 
 class UAVCommNode : public rclcpp::Node {
