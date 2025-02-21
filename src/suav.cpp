@@ -74,14 +74,12 @@ private:
 
 class Task {
 public:
-    Task(const std::string &id)
-        : id_(id), uav_comm_(std::make_shared<UAVCommNode>(id)), stop_flag_(false) {
+    Task(const json settings)
+        : id_(settings["id"]), uav_comm_(std::make_shared<UAVCommNode>(id_)), stop_flag_(false) {
 
-        search_height_ = 20.0;
-
-        spawn_point_ = Eigen::Vector3d(-1500.0, 0.0, 0.0);
-        takeoff_point_ = Eigen::Vector3d(-1500.0, 0.0, search_height_);
-        prepare_point_ = Eigen::Vector3d(-1400.0, 0.0, search_height_);
+        auto arr = settings["prepare_point"].get<std::vector<double>>();
+        prepare_point_ = Eigen::Vector3d(arr.data());
+        search_height_ = prepare_point_.z();
 
         spin_thread_ = std::thread([this]() {
             uav_comm_->spin();
@@ -102,8 +100,23 @@ public:
         }
     }
 
+    void runOnce() {
+        if (!stop_flag_) {
+            update();
+        }
+    }
+
     void stop() {
         stop_flag_ = true;
+    }
+
+    bool isInPerform() {
+        return current_state_ == State::PERFORM;
+    }
+
+    void endPerform() {
+        if (!isInPerform()) return;
+        transition_to(State::BACK);
     }
 
 private:
@@ -221,27 +234,74 @@ private:
     Eigen::Vector3d takeoff_point_;
     Eigen::Vector3d prepare_point_;
     
-    Eigen::Vector3d velocity_cmd_;
-    Eigen::Vector2d velocity_2d_cmd_;
+    Eigen::Vector3d velocity_cmd_ = Eigen::Vector3d::Zero();
+    Eigen::Vector2d velocity_2d_cmd_ = Eigen::Vector2d::Zero();
 
     std::mutex log_mutex_;
 };
 
 int main(int argc, char **argv) {
     rclcpp::init(argc, argv);
-    if (argc < 2) {
-        RCLCPP_ERROR(rclcpp::get_logger("rclcpp"), "Please provide an ID as an argument.");
-        return 1;
-    }
-    std::string id(argv[1]);
-
-    Task task(id);
-
     std::signal(SIGINT, [](int) {
         rclcpp::shutdown();
     });
 
-    task.run();
+    int num = 6;
+    nlohmann::json settings = {
+        {
+            {"id", "1"},
+            {"prepare_point", {-1450.0, 30.0, 50.0}}
+        },
+        {
+            {"id", "2"},
+            {"prepare_point", {-1450.0, 20.0, 50.0}}
+        },
+        {
+            {"id", "3"},
+            {"prepare_point", {-1450.0, 10.0, 50.0}}
+        },
+        {
+            {"id", "4"},
+            {"prepare_point", {-1450.0, 0.0, 50.0}}
+        },
+        {
+            {"id", "5"},
+            {"prepare_point", {-1450.0, -10.0, 50.0}}
+        },
+        {
+            {"id", "6"},
+            {"prepare_point", {-1450.0, -20.0, 50.0}}
+        }
+    };
+    
+    std::vector<std::unique_ptr<Task>> tasks;
+
+    for (auto &[key, value] : settings.items()) {
+        tasks.emplace_back(std::make_unique<Task>(value));
+    }
+
+    while (rclcpp::ok()) {
+        std::this_thread::sleep_for(100ms);
+
+        bool all_perform = true;
+        for (auto &task : tasks) {
+            if (!task->isInPerform()) {
+                all_perform = false;
+                break;
+            }
+        }
+
+        if (all_perform) {
+            for (auto &task : tasks) {
+                task->endPerform();
+            }
+        }
+
+        for (auto &task : tasks) {
+            std::cout << std::flush;
+            task->runOnce();
+        }
+    }
 
     return 0;
 }

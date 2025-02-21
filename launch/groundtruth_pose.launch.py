@@ -8,6 +8,6 @@ def generate_launch_description():
             executable='pose_bridge',
             name='pose_bridge',
             output='screen',
-            arguments=['1']
+            arguments=['6']
         ),
     ])
