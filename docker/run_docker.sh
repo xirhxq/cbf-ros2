@@ -13,16 +13,20 @@ if [ $# -ge 1 ]; then
 fi
 
 XAUTH=/tmp/.docker.xauth
+xauth_list=$(xauth nlist :0 | sed -e 's/^..../ffff/')
 if [ ! -f $XAUTH ]; then
-    xauth_list=$(xauth nlist $DISPLAY)
-    xauth_list=$(sed -e 's/^..../ffff/' <<< "$xauth_list")
-    if [ ! -z "$xauth_list" ]; then
-        echo "$xauth_list" | xauth -f $XAUTH nmerge -
-    else
-        touch $XAUTH
-    fi
+    touch $XAUTH
     chmod a+r $XAUTH
+    if [ ! -z "$xauth_list" ]; then
+        echo $xauth_list | xauth -f $XAUTH nmerge -
+    fi
 fi
+
+if [ ! -f $XAUTH ]; then
+  exit 1
+fi
+
+xhost +local:root > /dev/null
 
 DOCKER_OPTS=""
 DOCKER_VER=$(dpkg-query -f='${Version}' --show docker-ce 2>/dev/null | sed 's/[0-9]://')
