@@ -7,6 +7,7 @@ endif()
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 
 find_package(ament_cmake REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
@@ -47,6 +48,15 @@ foreach(TASK ${tasks})
     DESTINATION lib/${PROJECT_NAME}
   )
 endforeach(TASK ${tasks})
+
+# 独立测试程序 - 不需要 ROS2 仿真环境
+add_executable(test_cbf_integration src/test_cbf_integration.cpp)
+ament_target_dependencies(test_cbf_integration ament_index_cpp)
+set_target_properties(test_cbf_integration PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(test_cbf_integration cbf_deps)
+install(TARGETS test_cbf_integration
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 
 install(DIRECTORY launch/
