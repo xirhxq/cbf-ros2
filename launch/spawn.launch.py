@@ -1,19 +1,15 @@
-from struct import pack
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction, IncludeLaunchDescription
 from launch.substitutions import LaunchConfiguration, TextSubstitution, PathJoinSubstitution
-from launch_ros.actions import Node
-from launch_ros.descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-
-from ament_index_python.packages import get_package_share_directory
 
 
 def my_function(context):
     node_num = LaunchConfiguration('numbers').perform(context)
-
     num_list = range(int(node_num))
+
+    print(f"Spawning {node_num} UAVs")
 
     ld = []
 
@@ -44,9 +40,8 @@ def my_function(context):
                     'slot1_rpy': '0 0 0'
                 }.items()
             )
-            
         )
-    
+
     return ld
 
 
