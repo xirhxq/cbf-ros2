@@ -51,6 +51,16 @@ public:
         swarm_->exchangeData();
         swarm_initialized_ = true;
 
+        // Initialize yaw from config
+        double initial_yaw_deg = config_["initial"]["yawDeg"].get<double>();
+        double initial_yaw_rad = initial_yaw_deg * M_PI / 180.0;
+        uav_yaws_.resize(swarm_->robots.size(), initial_yaw_rad);
+
+        // Set initial yaw in models
+        for (size_t i = 0; i < swarm_->robots.size(); ++i) {
+            swarm_->robots[i]->model->setStateVariable("yawRad", uav_yaws_[i]);
+        }
+
         std::cout << GREEN << "[SwarmController] Initialized with "
                   << swarm_->robots.size() << " robots" << RESET << std::endl;
     }
@@ -58,10 +68,12 @@ public:
     void step(const std::vector<Eigen::Vector3d>& uav_positions, double dt) {
         if (!swarm_initialized_) return;
 
-        // 1. Sync positions
+        // 1. Sync positions and yaw
         for (size_t i = 0; i < swarm_->robots.size() && i < uav_positions.size(); ++i) {
             Point pos2d(uav_positions[i].x(), uav_positions[i].y());
             swarm_->robots[i]->model->setPosition2D(pos2d);
+            // Sync yaw from uav_yaws_ to model
+            swarm_->robots[i]->model->setStateVariable("yawRad", uav_yaws_[i]);
         }
 
         // 2. Data exchange
@@ -85,13 +97,13 @@ public:
         }
     }
 
-    Eigen::Vector2d getControl(int robot_index) {
+    Eigen::Vector3d getControl(int robot_index) {
         if (!swarm_initialized_ || robot_index >= static_cast<int>(swarm_->robots.size())) {
-            return Eigen::Vector2d::Zero();
+            return Eigen::Vector3d::Zero();
         }
 
         auto control = swarm_->robots[robot_index]->model->getControlInput();
-        return Eigen::Vector2d(control(0), control(1));
+        return Eigen::Vector3d(control(0), control(1), control(2));  // vx, vy, yawRate
     }
 
     // === Logging interface ===
@@ -124,12 +136,33 @@ public:
         }
     }
 
+    // === Yaw update interface ===
+    void updateYaw(int robot_index, double yaw_rate, double dt) {
+        if (robot_index < static_cast<int>(uav_yaws_.size())) {
+            uav_yaws_[robot_index] += yaw_rate * dt;
+            // Normalize to [-pi, pi]
+            while (uav_yaws_[robot_index] > M_PI) uav_yaws_[robot_index] -= 2 * M_PI;
+            while (uav_yaws_[robot_index] < -M_PI) uav_yaws_[robot_index] += 2 * M_PI;
+
+            // Sync to model
+            swarm_->robots[robot_index]->model->setStateVariable("yawRad", uav_yaws_[robot_index]);
+        }
+    }
+
+    double getYaw(int robot_index) const {
+        if (robot_index < static_cast<int>(uav_yaws_.size())) {
+            return uav_yaws_[robot_index];
+        }
+        return 0.0;
+    }
+
     bool isInitialized() const { return swarm_initialized_; }
 
 private:
     json config_;
     std::unique_ptr<Swarm> swarm_;
     bool swarm_initialized_;
+    std::vector<double> uav_yaws_;  // Store yaw for each UAV (radians)
 };
 
 int main(int argc, char **argv) {
@@ -232,7 +265,7 @@ int main(int argc, char **argv) {
         // Collect current velocities (simulating external velocity injection)
         std::vector<std::pair<double, double>> velocities;
         for (size_t i = 0; i < uav_positions.size(); ++i) {
-            Eigen::Vector2d ctrl = swarm_ctrl.getControl(i);
+            Eigen::Vector3d ctrl = swarm_ctrl.getControl(i);
             velocities.emplace_back(ctrl.x(), ctrl.y());
         }
         swarm_ctrl.injectVelocities(velocities);
@@ -243,11 +276,12 @@ int main(int argc, char **argv) {
         // Log data
         swarm_ctrl.logStep();
 
-        // Simple position update simulation
+        // Simple position and yaw update simulation
         for (size_t i = 0; i < uav_positions.size(); ++i) {
-            Eigen::Vector2d ctrl = swarm_ctrl.getControl(i);
+            Eigen::Vector3d ctrl = swarm_ctrl.getControl(i);
             uav_positions[i].x() += ctrl.x() * dt;
             uav_positions[i].y() += ctrl.y() * dt;
+            swarm_ctrl.updateYaw(i, ctrl.z(), dt);  // Update yaw
         }
     }
     std::cout << std::endl;
@@ -259,11 +293,13 @@ int main(int argc, char **argv) {
     // 9. Final positions
     std::cout << "\n[Step 7] Final positions after " << num_steps << " steps:" << std::endl;
     for (size_t i = 0; i < uav_positions.size(); ++i) {
+        double yaw_deg = swarm_ctrl.getYaw(i) * 180.0 / M_PI;
         std::cout << "  UAV " << (i + 1) << ": ("
                   << std::fixed << std::setprecision(2)
                   << uav_positions[i].x() << ", "
                   << uav_positions[i].y() << ", "
-                  << uav_positions[i].z() << ")" << std::endl;
+                  << uav_positions[i].z() << "), yaw: "
+                  << yaw_deg << " deg" << std::endl;
     }
 
     std::cout << "\n" << GREEN << "========================================" << std::endl;
