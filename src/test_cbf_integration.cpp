@@ -15,42 +15,39 @@
 #include <vector>
 #include <chrono>
 #include <filesystem>
+#include <iomanip>
 
 #include "ament_index_cpp/get_package_share_directory.hpp"
 #include "cbf-core.h"
 #include "cbf-ros2/Utils.h"
 
-// 模拟 UAV 位置（与 suav.cpp 中相同数量的 UAV）
-const int NUM_UAVS = 6;
-
-// 模拟初始位置（与 spawn.launch.py 中一致）
-std::vector<Eigen::Vector3d> getInitialPositions() {
-    return {
-        {-1490.0, 0.0, 50.0},  // UAV 1
-        {-1492.0, 0.0, 50.0},  // UAV 2
-        {-1494.0, 0.0, 50.0},  // UAV 3
-        {-1496.0, 0.0, 50.0},  // UAV 4
-        {-1498.0, 0.0, 50.0},  // UAV 5
-        {-1500.0, 0.0, 50.0},  // UAV 6
-    };
+// Get initial positions from config
+std::vector<Eigen::Vector3d> getInitialPositions(const json& config) {
+    std::vector<Eigen::Vector3d> positions;
+    if (config["initial"]["position"]["method"] == "specified") {
+        for (const auto& pos : config["initial"]["position"]["positions"]) {
+            positions.emplace_back(pos[0].get<double>(), pos[1].get<double>(), 50.0);
+        }
+    }
+    return positions;
 }
 
-// SwarmController - 与 suav.cpp 中相同的实现
+// SwarmController - Same implementation as in suav.cpp
 class SwarmController {
 public:
     SwarmController(const json& config)
         : config_(config), swarm_initialized_(false) {}
 
     void initialize() {
-        // 创建 Swarm 实例
+        // Create Swarm instance
         swarm_ = std::make_unique<Swarm>(config_);
 
-        // 为每个机器人初始化 CBF（分布式模式）
+        // Initialize CBF for each robot (distributed mode)
         for (auto &robot : swarm_->robots) {
             robot->presetCBF();
         }
 
-        // 初始化数据交换
+        // Initialize data exchange
         swarm_->exchangeData();
         swarm_initialized_ = true;
 
@@ -61,27 +58,28 @@ public:
     void step(const std::vector<Eigen::Vector3d>& uav_positions, double dt) {
         if (!swarm_initialized_) return;
 
-        // 1. 同步位置
+        // 1. Sync positions
         for (size_t i = 0; i < swarm_->robots.size() && i < uav_positions.size(); ++i) {
             Point pos2d(uav_positions[i].x(), uav_positions[i].y());
             swarm_->robots[i]->model->setPosition2D(pos2d);
         }
 
-        // 2. 数据交换
+        // 2. Data exchange
         swarm_->exchangeData();
 
-        // 3. 更新网格世界和 CBF
+        // 3. Update grid world and CBF
         for (auto &robot : swarm_->robots) {
             robot->updateGridWorld();
             robot->postsetCBF();
         }
+        swarm_->updateGridWorld();  // Update Swarm-level grid world (for logging)
 
-        // 4. 分布式优化
+        // 4. Distributed optimization
         for (auto &robot : swarm_->robots) {
             robot->optimise();
         }
 
-        // 5. 更新运行时间
+        // 5. Update runtime
         for (auto &robot : swarm_->robots) {
             robot->runtime += dt;
         }
@@ -94,6 +92,36 @@ public:
 
         auto control = swarm_->robots[robot_index]->model->getControlInput();
         return Eigen::Vector2d(control(0), control(1));
+    }
+
+    // === Logging interface ===
+    void initLog() {
+        if (swarm_initialized_) {
+            swarm_->initLog();
+            swarm_->logParams();
+            std::cout << GREEN << "[SwarmController] Log initialized, data will be saved to: "
+                      << swarm_->filename << RESET << std::endl;
+        }
+    }
+
+    void logStep() {
+        if (swarm_initialized_) {
+            swarm_->logOnce();
+        }
+    }
+
+    void endLog() {
+        if (swarm_initialized_) {
+            swarm_->endLog();
+            std::cout << GREEN << "[SwarmController] Log saved to: " << swarm_->filename << RESET << std::endl;
+        }
+    }
+
+    // === External velocity injection interface ===
+    void injectVelocities(const std::vector<std::pair<double, double>>& velocities) {
+        if (swarm_initialized_) {
+            swarm_->injectExternalVelocities(velocities);
+        }
     }
 
     bool isInitialized() const { return swarm_initialized_; }
@@ -144,32 +172,28 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    // 2. 覆盖配置用于测试
-    cbf_config["num"] = NUM_UAVS;
-    cbf_config["execute"]["execution-mode"] = "distributed";
+    // 2. Set output path (save to cbf submodule's data folder)
+    // When running from cbf_ws, cbf submodule is at src/cbf-ros2/cbf
+    std::string cbf_data_path = std::filesystem::current_path().string() + "/src/cbf-ros2/cbf/data";
+    cbf_config["output_path"] = cbf_data_path;
 
-    // 关闭位置协方差计算（测试中 UAV 距离基站太远，无法获得足够锚点）
-    cbf_config["position_covariance"]["enable"] = false;
-
-    std::cout << "  - Number of robots: " << cbf_config["num"] << std::endl;
+    // 3. Display config info
+    int num_robots = cbf_config["num"].get<int>();
+    std::cout << "  - Number of robots: " << num_robots << std::endl;
     std::cout << "  - Execution mode: " << cbf_config["execute"]["execution-mode"] << std::endl;
     std::cout << "  - Position covariance: "
               << (cbf_config["position_covariance"]["enable"].get<bool>() ? "ON" : "OFF") << std::endl;
 
-    // 3. 设置初始位置
-    std::cout << "\n[Step 2] Setting initial positions..." << std::endl;
-    auto uav_positions = getInitialPositions();
+    // 3. Get initial positions
+    std::cout << "\n[Step 2] Getting initial positions from config..." << std::endl;
+    auto uav_positions = getInitialPositions(cbf_config);
 
-    json positions_json = json::array();
-    for (const auto &pos : uav_positions) {
-        positions_json.push_back({pos.x(), pos.y()});
-        std::cout << "  - UAV " << positions_json.size() << ": ("
-                  << pos.x() << ", " << pos.y() << ", " << pos.z() << ")" << std::endl;
+    for (size_t i = 0; i < uav_positions.size(); ++i) {
+        std::cout << "  - UAV " << (i + 1) << ": ("
+                  << uav_positions[i].x() << ", " << uav_positions[i].y() << ", " << uav_positions[i].z() << ")" << std::endl;
     }
-    cbf_config["initial"]["position"]["method"] = "specified";
-    cbf_config["initial"]["position"]["positions"] = positions_json;
 
-    // 4. 初始化 SwarmController
+    // 4. Initialize SwarmController
     std::cout << "\n[Step 3] Initializing SwarmController..." << std::endl;
     SwarmController swarm_ctrl(cbf_config);
     swarm_ctrl.initialize();
@@ -179,34 +203,64 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    // 5. 运行几步优化
-    std::cout << "\n[Step 4] Running CBF optimization steps..." << std::endl;
-    double dt = 0.1;  // 100ms
-    int num_steps = 10;
+    // 5. Initialize log
+    std::cout << "\n[Step 4] Initializing data log..." << std::endl;
+    std::cout << "  - Output path: " << cbf_config["output_path"].get<std::string>() << std::endl;
+    swarm_ctrl.initLog();
+
+    // 6. Read time step and total time from config
+    double dt = cbf_config["execute"]["time-step"].get<double>();
+    double total_time = cbf_config["execute"]["time-total"].get<double>();
+    int num_steps = static_cast<int>(total_time / dt);
+
+    std::cout << "  - Time step (dt): " << dt << "s" << std::endl;
+    std::cout << "  - Total time: " << total_time << "s" << std::endl;
+    std::cout << "  - Number of steps: " << num_steps << std::endl;
+
+    // 7. Run CBF optimization
+    std::cout << "\n[Step 5] Running CBF optimization steps..." << std::endl;
 
     for (int step = 0; step < num_steps; ++step) {
-        std::cout << "\n--- Step " << (step + 1) << " ---" << std::endl;
+        // Display progress
+        if (step % 10 == 0 || step == num_steps - 1) {
+            std::cout << "\r  Progress: " << (step + 1) << "/" << num_steps
+                      << " (" << std::fixed << std::setprecision(1)
+                      << (100.0 * (step + 1) / num_steps) << "%)"
+                      << std::flush;
+        }
 
-        // 运行 CBF 优化
+        // Collect current velocities (simulating external velocity injection)
+        std::vector<std::pair<double, double>> velocities;
+        for (size_t i = 0; i < uav_positions.size(); ++i) {
+            Eigen::Vector2d ctrl = swarm_ctrl.getControl(i);
+            velocities.emplace_back(ctrl.x(), ctrl.y());
+        }
+        swarm_ctrl.injectVelocities(velocities);
+
+        // Run CBF optimization
         swarm_ctrl.step(uav_positions, dt);
 
-        // 获取并显示控制输出
-        std::cout << "Control outputs (vx, vy):" << std::endl;
-        for (int i = 0; i < NUM_UAVS; ++i) {
-            Eigen::Vector2d ctrl = swarm_ctrl.getControl(i);
-            std::cout << "  UAV " << (i + 1) << ": ("
-                      << ctrl.x() << ", " << ctrl.y() << ")" << std::endl;
+        // Log data
+        swarm_ctrl.logStep();
 
-            // 简单模拟位置更新（用于测试）
+        // Simple position update simulation
+        for (size_t i = 0; i < uav_positions.size(); ++i) {
+            Eigen::Vector2d ctrl = swarm_ctrl.getControl(i);
             uav_positions[i].x() += ctrl.x() * dt;
             uav_positions[i].y() += ctrl.y() * dt;
         }
     }
+    std::cout << std::endl;
 
-    // 6. 最终位置
-    std::cout << "\n[Step 5] Final positions after " << num_steps << " steps:" << std::endl;
-    for (int i = 0; i < NUM_UAVS; ++i) {
+    // 8. Save log
+    std::cout << "\n[Step 6] Saving data log..." << std::endl;
+    swarm_ctrl.endLog();
+
+    // 9. Final positions
+    std::cout << "\n[Step 7] Final positions after " << num_steps << " steps:" << std::endl;
+    for (size_t i = 0; i < uav_positions.size(); ++i) {
         std::cout << "  UAV " << (i + 1) << ": ("
+                  << std::fixed << std::setprecision(2)
                   << uav_positions[i].x() << ", "
                   << uav_positions[i].y() << ", "
                   << uav_positions[i].z() << ")" << std::endl;
