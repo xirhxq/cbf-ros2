@@ -59,6 +59,10 @@ public:
         return current_state_ == State::LAND;
     }
 
+    bool isInBack() const {
+        return current_state_ == State::BACK;
+    }
+
     void endPerform() {
         if (!isInPerform()) return;
         transition_to(State::BACK);

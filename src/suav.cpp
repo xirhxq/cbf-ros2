@@ -210,16 +210,16 @@ int main(int argc, char **argv) {
             task->runOnce();
         }
 
-        // Check if all UAVs are in LAND state - if so, exit
-        bool all_in_land = true;
+        // Check if all UAVs are in BACK state - if so, exit
+        bool all_in_back = true;
         for (auto& task : tasks) {
-            if (!task->isInLand()) {
-                all_in_land = false;
+            if (!task->isInBack()) {
+                all_in_back = false;
                 break;
             }
         }
-        if (all_in_land) {
-            std::cout << GREEN << "\n*** All UAVs have landed, mission complete! ***" << RESET << std::endl;
+        if (all_in_back) {
+            std::cout << GREEN << "\n*** All UAVs in BACK state, mission complete! ***" << RESET << std::endl;
             break;
         }
 
