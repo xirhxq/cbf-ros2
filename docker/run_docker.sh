@@ -47,7 +47,7 @@ fi
 VIMRC=~/.vimrc
 [ -f $VIMRC ] && DOCKER_OPTS="$DOCKER_OPTS -v $VIMRC:/home/developer/.vimrc:ro"
 
-docker run -it \
+docker run -it --rm \
   -e DISPLAY \
   -e QT_X11_NO_MITSHM=1 \
   -e XAUTHORITY=$XAUTH \
