@@ -117,7 +117,7 @@ int main(int argc, char **argv) {
     // Create task settings
     nlohmann::json task_settings = json::array();
     for (size_t i = 0; i < static_cast<size_t>(num_robots); ++i) {
-        double z = (i < initial_positions.size()) ? initial_positions[i].z() : 50.0;
+        double z = 200.0;  // Search height at 200m
         task_settings.push_back({
             {"id", std::to_string(i + 1)},
             {"prepare_point", {initial_positions[i].x(), initial_positions[i].y(), z}}
