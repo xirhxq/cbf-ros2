@@ -43,10 +43,8 @@ inline double normalizeAngle(double angle) {
  * @return Yaw angle in radians
  */
 inline double quaternionToYaw(double w, double x, double y, double z) {
-    // yaw (z-axis rotation)
-    double siny_cosp = 2.0 * (w * z + x * y);
-    double cosy_cosp = 1.0 - 2.0 * (y * y + z * z);
-    return std::atan2(siny_cosp, cosy_cosp);
+    // Use the same formula as quaternionToEuler for consistency with reference code
+    return std::atan2(2.0 * (z * w + x * y), -1.0 + 2.0 * (w * w + x * x));
 }
 
 /**
