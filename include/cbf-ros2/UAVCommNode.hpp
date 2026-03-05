@@ -77,15 +77,22 @@ public:
             earthToBody(vx, vy, vz, R_e2b_);
         }
 
-        // Limit vertical velocity in body frame to prevent rapid descent
-        const double MAX_VERTICAL_VEL = 5.0;
-        vz = std::max(-MAX_VERTICAL_VEL, std::min(MAX_VERTICAL_VEL, vz));
+        // Note: No vertical velocity limiting - CBF already limits world frame velocity
 
         cmd.linear.x = vx;
         cmd.linear.y = vy;
         cmd.linear.z = vz;
         cmd.angular.z = yaw_rate;
         vel_cmd_pub_->publish(cmd);
+
+        // Store body frame velocity for debugging
+        std::lock_guard<std::mutex> lock(data_mutex_);
+        last_body_vel_ = Eigen::Vector3d(vx, vy, vz);
+    }
+
+    Eigen::Vector3d get_last_body_vel() const {
+        std::lock_guard<std::mutex> lock(data_mutex_);
+        return last_body_vel_;
     }
 
     Eigen::Vector3d get_last_pose() const {
@@ -112,6 +119,7 @@ private:
     mutable std::mutex data_mutex_;
     geometry_msgs::msg::PoseStamped last_pose_;
     double R_e2b_[3][3];  // Rotation matrix: ENU (earth) to Body frame
+    Eigen::Vector3d last_body_vel_;  // Last body frame velocity command
 };
 
 #endif // CBF_ROS2_UAV_COMM_NODE_HPP
