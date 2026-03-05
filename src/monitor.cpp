@@ -11,6 +11,8 @@
 #include <string>
 #include <cmath>
 #include <iomanip>
+#include <deque>
+#include <numeric>
 
 #include "rclcpp/rclcpp.hpp"
 #include "rosgraph_msgs/msg/clock.hpp"
@@ -29,8 +31,8 @@ public:
 
         // Initialize positions
         for (int i = 0; i <= uav_num_; i++) {
-            uav_pos_[i] = {0.0, 0.0, -1.0, 0.0, 0.0};  // z < 0 means not spawned
-            uav_pos_prev_[i] = {0.0, 0.0, -1.0, 0.0, 0.0};
+            uav_pos_[i] = {0.0, 0.0, -1.0, 0.0, 0.0, 0.0};  // z < 0 means not spawned
+            uav_pos_prev_[i] = {0.0, 0.0, -1.0, 0.0, 0.0, 0.0};
         }
 
         RCLCPP_INFO(this->get_logger(), "Monitor initialized for %d UAVs", uav_num_);
@@ -64,12 +66,16 @@ public:
 private:
     struct Position {
         double x, y, z;
-        double vx, vy;  // Velocity computed from position derivative
+        double vx, vy, vz;  // Instant velocities computed from position derivative
+        std::deque<double> vx_history, vy_history, vz_history;  // History for averaging
+        double vx_avg, vy_avg, vz_avg;  // Averaged velocities (1 second window)
     };
 
     void timer_callback() {
         // Clear screen
         std::cout << "\033c" << std::flush;
+
+        const int HISTORY_SIZE = 10;  // 10 samples at 100ms = 1 second window
 
         // Compute velocities from position derivative
         double dt = clock_ - last_clock_;
@@ -78,9 +84,35 @@ private:
                 if (uav_pos_[i].z >= 0 && uav_pos_prev_[i].z >= 0) {
                     uav_pos_[i].vx = (uav_pos_[i].x - uav_pos_prev_[i].x) / dt;
                     uav_pos_[i].vy = (uav_pos_[i].y - uav_pos_prev_[i].y) / dt;
+                    uav_pos_[i].vz = (uav_pos_[i].z - uav_pos_prev_[i].z) / dt;
                 } else {
                     uav_pos_[i].vx = 0.0;
                     uav_pos_[i].vy = 0.0;
+                    uav_pos_[i].vz = 0.0;
+                }
+
+                // Update velocity history
+                uav_pos_[i].vx_history.push_back(uav_pos_[i].vx);
+                uav_pos_[i].vy_history.push_back(uav_pos_[i].vy);
+                uav_pos_[i].vz_history.push_back(uav_pos_[i].vz);
+
+                if (uav_pos_[i].vx_history.size() > HISTORY_SIZE) {
+                    uav_pos_[i].vx_history.pop_front();
+                    uav_pos_[i].vy_history.pop_front();
+                    uav_pos_[i].vz_history.pop_front();
+                }
+
+                // Compute averaged velocities
+                if (!uav_pos_[i].vx_history.empty()) {
+                    uav_pos_[i].vx_avg = std::accumulate(uav_pos_[i].vx_history.begin(),
+                                                          uav_pos_[i].vx_history.end(), 0.0)
+                                          / uav_pos_[i].vx_history.size();
+                    uav_pos_[i].vy_avg = std::accumulate(uav_pos_[i].vy_history.begin(),
+                                                          uav_pos_[i].vy_history.end(), 0.0)
+                                          / uav_pos_[i].vy_history.size();
+                    uav_pos_[i].vz_avg = std::accumulate(uav_pos_[i].vz_history.begin(),
+                                                          uav_pos_[i].vz_history.end(), 0.0)
+                                          / uav_pos_[i].vz_history.size();
                 }
             }
         }
@@ -112,12 +144,13 @@ private:
                 std::cout << YELLOW << "#" << std::setw(2) << i << RESET << ": "
                           << RED << "NOT SPAWNED" << RESET << std::endl;
             } else {
-                double speed = std::sqrt(uav_pos_[i].vx * uav_pos_[i].vx + uav_pos_[i].vy * uav_pos_[i].vy);
                 std::cout << GREEN << "#" << std::setw(2) << i << RESET << ": "
                           << "(" << std::setw(8) << std::fixed << std::setprecision(1) << uav_pos_[i].x << ", "
                           << std::setw(8) << uav_pos_[i].y << ", "
                           << std::setw(6) << uav_pos_[i].z << ")"
-                          << CYAN << " v=" << std::setw(5) << std::setprecision(1) << speed << " m/s" << RESET
+                          << CYAN << " vx=" << std::setw(5) << std::setprecision(1) << uav_pos_[i].vx_avg
+                          << " vy=" << std::setw(5) << uav_pos_[i].vy_avg
+                          << " vz=" << std::setw(5) << uav_pos_[i].vz_avg << RESET
                           << std::endl;
             }
         }
