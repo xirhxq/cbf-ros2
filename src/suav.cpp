@@ -139,6 +139,9 @@ int main(int argc, char **argv) {
     double perform_duration = cbf_config["execute"]["time-total"].get<double>();
 
     while (rclcpp::ok()) {
+        // Clear screen at the start of each loop iteration
+        std::cout << "\033c" << std::flush;
+
         // Spin clock node
         rclcpp::spin_some(clock_node);
 
@@ -204,6 +207,7 @@ int main(int argc, char **argv) {
                 Eigen::Vector3d ctrl = swarm_ctrl.getControl(i);
                 tasks[i]->setCBFControl(Eigen::Vector2d(ctrl.x(), ctrl.y()), ctrl.z());
             }
+
         }
 
         // Run task state machines
