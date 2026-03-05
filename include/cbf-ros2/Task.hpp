@@ -138,7 +138,9 @@ private:
                 break;
         }
 
-        uav_comm_->publish_velocity(velocity_cmd_, yaw_rate_cmd_);
+        // Convert world frame velocity to body frame before publishing
+        // MBZIRC cmd_vel expects body frame velocities
+        uav_comm_->publish_velocity_earth(velocity_cmd_, yaw_rate_cmd_);
 
         std::lock_guard<std::mutex> lock(log_mutex_);
         double yaw_deg = current_yaw * 180.0 / M_PI;
