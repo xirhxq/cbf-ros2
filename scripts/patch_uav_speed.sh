@@ -48,7 +48,7 @@ grep -n "maximumLinearAcceleration" "$MODEL_FILE" || true
 # Recompile mbzirc_ign (only takes ~2 seconds)
 echo "[patch_uav_speed.sh] Recompiling mbzirc_ign..."
 cd "$HOME/mbzirc_ws"
-source /opt/ros/galactic/setup.bash
+. /opt/ros/galactic/setup.bash
 colcon build --packages-select mbzirc_ign --merge-install 2>&1 | tail -5
 
 if [ $? -eq 0 ]; then
