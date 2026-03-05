@@ -166,6 +166,7 @@ int main(int argc, char **argv) {
             // Record start time when all UAVs enter PERFORM
             if (perform_start_time == 0.0) {
                 perform_start_time = current_time;
+                swarm_ctrl.resetRuntime();
                 std::cout << GREEN << "\n*** All UAVs in PERFORM state, starting CBF control ***" << RESET << std::endl;
             }
 
@@ -192,8 +193,8 @@ int main(int argc, char **argv) {
             }
             swarm_ctrl.injectVelocities(velocities);
 
-            // Run CBF optimization
-            swarm_ctrl.step(positions, dt);
+            // Run CBF optimization (use config time_step for runtime tracking, not simulation time delta)
+            swarm_ctrl.step(positions, time_step);
 
             // Log data
             swarm_ctrl.logStep();

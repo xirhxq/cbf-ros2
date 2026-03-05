@@ -116,6 +116,14 @@ public:
         }
     }
 
+    void resetRuntime() {
+        if (swarm_initialized_) {
+            for (auto& robot : swarm_->robots) {
+                robot->runtime = 0.0;
+            }
+        }
+    }
+
     void updateYawFromControl(int robot_index, double yaw_rate, double dt) {
         if (robot_index >= 0 && robot_index < static_cast<int>(uav_yaws_.size())) {
             uav_yaws_[robot_index] += yaw_rate * dt;
