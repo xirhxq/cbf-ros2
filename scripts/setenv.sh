@@ -2,7 +2,7 @@
 # setenv.sh - Load UAV_NUM from config.json
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_PATH="$SCRIPT_DIR/cbf/config/config.json"
+CONFIG_PATH="$SCRIPT_DIR/../cbf/config/config.json"
 
 # Parse config.json using python
 eval $(python3 -c "
