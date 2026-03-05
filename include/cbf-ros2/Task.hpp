@@ -82,6 +82,10 @@ public:
         return uav_comm_->get_yaw();
     }
 
+    Eigen::Vector3d getBodyVelocity() const {
+        return uav_comm_->get_last_body_vel();
+    }
+
     std::string getId() const { return id_; }
 
 private:
@@ -142,15 +146,18 @@ private:
         // MBZIRC cmd_vel expects body frame velocities
         uav_comm_->publish_velocity_earth(velocity_cmd_, yaw_rate_cmd_);
 
+        Eigen::Vector3d body_vel = uav_comm_->get_last_body_vel();
         std::lock_guard<std::mutex> lock(log_mutex_);
         double yaw_deg = current_yaw * 180.0 / M_PI;
         printf(
-            "#%s | Pos: (%.1f, %.1f, %.1f) | Yaw: %.1f° | State: %s | Vel: (%.2f, %.2f, %.2f) | YawRate: %.2f\n",
+            "#%s | Pos: (%.1f, %.1f, %.1f) | Yaw: %.1f° | State: %s | Vel(e): (%.2f, %.2f, %.2f) | Vel(b): (%.2f, %.2f, %.2f) | YawRate: %.2f\n",
             id_.c_str(), current_pose.x(), current_pose.y(), current_pose.z(),
             yaw_deg, state_to_string(current_state_).c_str(),
             velocity_cmd_.x(), velocity_cmd_.y(), velocity_cmd_.z(),
+            body_vel.x(), body_vel.y(), body_vel.z(),
             yaw_rate_cmd_
         );
+        fflush(stdout);
     }
 
     void control_to_point(const Eigen::Vector3d &current_pose, const Eigen::Vector3d &target_pose) {
