@@ -10,6 +10,8 @@
 #include <mutex>
 #include <string>
 #include <cstring>
+#include <cmath>
+#include <algorithm>
 #include "rclcpp/rclcpp.hpp"
 #include "geometry_msgs/msg/twist.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
@@ -66,12 +68,19 @@ public:
      * @param yaw_rate Yaw rate command
      */
     void publish_velocity_earth(const Eigen::Vector3d &velocity, double yaw_rate = 0.0) {
+        geometry_msgs::msg::Twist cmd;
+
+        // Full earth-to-body transformation
         double vx = velocity.x(), vy = velocity.y(), vz = velocity.z();
         {
             std::lock_guard<std::mutex> lock(data_mutex_);
             earthToBody(vx, vy, vz, R_e2b_);
         }
-        geometry_msgs::msg::Twist cmd;
+
+        // Limit vertical velocity in body frame to prevent rapid descent
+        const double MAX_VERTICAL_VEL = 5.0;
+        vz = std::max(-MAX_VERTICAL_VEL, std::min(MAX_VERTICAL_VEL, vz));
+
         cmd.linear.x = vx;
         cmd.linear.y = vy;
         cmd.linear.z = vz;
