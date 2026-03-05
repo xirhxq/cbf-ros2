@@ -22,14 +22,15 @@ using namespace std::chrono_literals;
 
 class Monitor : public rclcpp::Node {
 public:
-    Monitor(int uav_num) : Node("Monitor"), clock_(0.0), uav_num_(uav_num) {
+    Monitor(int uav_num) : Node("Monitor"), clock_(0.0), last_clock_(0.0), uav_num_(uav_num) {
         // Limit to max supported
         if (uav_num_ > 50) uav_num_ = 50;
         if (uav_num_ < 1) uav_num_ = 1;
 
         // Initialize positions
         for (int i = 0; i <= uav_num_; i++) {
-            uav_pos_[i] = {0.0, 0.0, -1.0};  // z < 0 means not spawned
+            uav_pos_[i] = {0.0, 0.0, -1.0, 0.0, 0.0};  // z < 0 means not spawned
+            uav_pos_prev_[i] = {0.0, 0.0, -1.0, 0.0, 0.0};
         }
 
         RCLCPP_INFO(this->get_logger(), "Monitor initialized for %d UAVs", uav_num_);
@@ -63,11 +64,32 @@ public:
 private:
     struct Position {
         double x, y, z;
+        double vx, vy;  // Velocity computed from position derivative
     };
 
     void timer_callback() {
         // Clear screen
         std::cout << "\033c" << std::flush;
+
+        // Compute velocities from position derivative
+        double dt = clock_ - last_clock_;
+        if (dt > 0.001 && dt < 1.0) {  // Valid dt range
+            for (int i = 1; i <= uav_num_; i++) {
+                if (uav_pos_[i].z >= 0 && uav_pos_prev_[i].z >= 0) {
+                    uav_pos_[i].vx = (uav_pos_[i].x - uav_pos_prev_[i].x) / dt;
+                    uav_pos_[i].vy = (uav_pos_[i].y - uav_pos_prev_[i].y) / dt;
+                } else {
+                    uav_pos_[i].vx = 0.0;
+                    uav_pos_[i].vy = 0.0;
+                }
+            }
+        }
+
+        // Store current positions for next iteration
+        for (int i = 1; i <= uav_num_; i++) {
+            uav_pos_prev_[i] = uav_pos_[i];
+        }
+        last_clock_ = clock_;
 
         // Print header
         std::cout << BOLDWHITE << "========================================" << RESET << std::endl;
@@ -81,7 +103,7 @@ private:
 
         // Print UAV details
         std::cout << std::endl;
-        std::cout << BOLDWHITE << "UAV Positions:" << RESET << std::endl;
+        std::cout << BOLDWHITE << "UAV Positions and Velocities:" << RESET << std::endl;
         std::cout << "----------------------------------------" << std::endl;
 
         for (int i = 1; i <= uav_num_; i++) {
@@ -90,10 +112,12 @@ private:
                 std::cout << YELLOW << "#" << std::setw(2) << i << RESET << ": "
                           << RED << "NOT SPAWNED" << RESET << std::endl;
             } else {
+                double speed = std::sqrt(uav_pos_[i].vx * uav_pos_[i].vx + uav_pos_[i].vy * uav_pos_[i].vy);
                 std::cout << GREEN << "#" << std::setw(2) << i << RESET << ": "
                           << "(" << std::setw(8) << std::fixed << std::setprecision(1) << uav_pos_[i].x << ", "
                           << std::setw(8) << uav_pos_[i].y << ", "
                           << std::setw(6) << uav_pos_[i].z << ")"
+                          << CYAN << " v=" << std::setw(5) << std::setprecision(1) << speed << " m/s" << RESET
                           << std::endl;
             }
         }
@@ -108,18 +132,20 @@ private:
         const double max_y = 3162.28;
 
         // Convert world coordinates to map indices
-        auto to_map_x = [max_x, l](double x) -> int {
-            int res = static_cast<int>((x + max_x / 2) / max_x * (l - 1));
+        // x: left to right is positive -> column (w), no flip
+        // y: bottom to top is positive -> row (l), flip needed
+        auto to_map_row = [max_y, l](double y) -> int {
+            int res = static_cast<int>((y + max_y / 2) / max_y * (l - 1));
             if (res < 0) res = 0;
             if (res >= l) res = l - 1;
-            return l - 1 - res;  // Flip so north is up
+            return l - 1 - res;  // Flip so y+ is up
         };
 
-        auto to_map_y = [max_y, w](double y) -> int {
-            int res = static_cast<int>((y + max_y / 2) / max_y * (w - 1));
+        auto to_map_col = [max_x, w](double y) -> int {
+            int res = static_cast<int>((y + max_x / 2) / max_x * (w - 1));
             if (res < 0) res = 0;
             if (res >= w) res = w - 1;
-            return res;
+            return w - 1 - res;  // Flip so y+ is left
         };
 
         // Add grid lines
@@ -134,8 +160,8 @@ private:
         for (int i = 1; i <= uav_num_; i++) {
             if (uav_pos_[i].z < 0) continue;  // Skip unspawned UAVs
 
-            int mx = to_map_x(uav_pos_[i].x);
-            int my = to_map_y(uav_pos_[i].y);
+            int mx = to_map_row(uav_pos_[i].x);  // x -> row
+            int my = to_map_col(uav_pos_[i].y);  // y -> column
 
             // Use hex digits for IDs > 9
             char c;
@@ -184,8 +210,10 @@ private:
 
     // Members
     double clock_;
+    double last_clock_;
     int uav_num_;
-    Position uav_pos_[51];  // Support up to 50 UAVs
+    Position uav_pos_[51];       // Support up to 50 UAVs
+    Position uav_pos_prev_[51];  // Previous positions for velocity calculation
 
     // Subscriptions
     rclcpp::TimerBase::SharedPtr timer_;
