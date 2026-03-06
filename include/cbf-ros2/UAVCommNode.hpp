@@ -71,12 +71,12 @@ public:
         geometry_msgs::msg::Twist cmd;
 
         // Velocity limits before e2b transformation (earth frame)
-        const double MAX_HORIZONTAL_VEL_EARTH = 10.0;  // m/s
-        const double MAX_VERTICAL_VEL_EARTH = 2.0;     // m/s
+        const double MAX_HORIZONTAL_VEL_EARTH = 15.0;  // m/s
+        const double MAX_VERTICAL_VEL_EARTH = 5.0;     // m/s
 
         // Velocity limits after e2b transformation (body frame)
-        const double MAX_HORIZONTAL_VEL_BODY = 10.0;   // m/s
-        const double MAX_VERTICAL_VEL_BODY = 2.0;      // m/s
+        const double MAX_HORIZONTAL_VEL_BODY = 15.0;   // m/s
+        const double MAX_VERTICAL_VEL_BODY = 5.0;      // m/s
 
         // Step 1: Limit velocity in earth frame before transformation
         double vx = velocity.x(), vy = velocity.y(), vz = velocity.z();
