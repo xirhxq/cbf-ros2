@@ -9,9 +9,10 @@ on_project_start: |
   # Patch MBZIRC settings (only runs once due to marker files)
   bash src/cbf-ros2/scripts/patch_uav_speed.sh 50
   bash src/cbf-ros2/scripts/patch_geofence_height.sh 400
+  bash src/cbf-ros2/scripts/patch_uav_thrust.sh 1.5
 
   # Recompile mbzirc_ign if any patches were applied
-  if [ -f "$HOME/.uav_speed_patched" ] || [ -f "$HOME/.geofence_height_patched" ]; then
+  if [ -f "$HOME/.uav_speed_patched" ] || [ -f "$HOME/.geofence_height_patched" ] || [ -f "$HOME/.uav_thrust_patched" ]; then
     echo "Recompiling mbzirc_ign..."
     bash -c 'cd ~/mbzirc_ws && source /opt/ros/galactic/setup.bash && colcon build --packages-select mbzirc_ign --merge-install'
   fi
