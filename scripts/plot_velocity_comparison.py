@@ -168,29 +168,31 @@ def extract_velocity_data(data):
 
 
 def plot_velocity_comparison(robot_data, output_dir, robot_ids=None):
-    """Plot velocity comparison for specified robots."""
+    """Plot velocity comparison for each robot in a separate figure."""
     if robot_ids is None:
         robot_ids = sorted(robot_data.keys())
 
-    # Select first few robots to plot
-    robots_to_plot = robot_ids[:min(4, len(robot_ids))]
-
-    num_robots = len(robots_to_plot)
-    if num_robots == 0:
+    if len(robot_ids) == 0:
         print("No data to plot.")
         return
 
-    # Create figure with subplots
-    fig, axes = plt.subplots(num_robots, 2, figsize=(14, 4 * num_robots))
-    if num_robots == 1:
-        axes = axes.reshape(1, -1)
+    # Create output subdirectory for individual robot plots
+    comparison_dir = output_dir / "velocity_comparison"
+    comparison_dir.mkdir(exist_ok=True)
 
-    for idx, rid in enumerate(robots_to_plot):
+    # Plot each robot in its own figure
+    for rid in robot_ids:
+        if rid not in robot_data:
+            continue
+
         rd = robot_data[rid]
         time = np.array(rd['time'])
 
+        # Create figure with 2 subplots for this robot
+        fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
         # Plot VX
-        ax_vx = axes[idx, 0]
+        ax_vx = axes[0]
         ax_vx.plot(time, rd['cbf_vx'], 'b-', label='CBF Control vx', linewidth=1.5)
         ax_vx.plot(time, rd['actual_vx'], 'r--', label='Actual vx (from position)', linewidth=1.5)
         ax_vx.set_xlabel('Time (s)')
@@ -200,7 +202,7 @@ def plot_velocity_comparison(robot_data, output_dir, robot_ids=None):
         ax_vx.grid(True, alpha=0.3)
 
         # Plot VY
-        ax_vy = axes[idx, 1]
+        ax_vy = axes[1]
         ax_vy.plot(time, rd['cbf_vy'], 'b-', label='CBF Control vy', linewidth=1.5)
         ax_vy.plot(time, rd['actual_vy'], 'r--', label='Actual vy (from position)', linewidth=1.5)
         ax_vy.set_xlabel('Time (s)')
@@ -209,52 +211,61 @@ def plot_velocity_comparison(robot_data, output_dir, robot_ids=None):
         ax_vy.legend()
         ax_vy.grid(True, alpha=0.3)
 
-    plt.tight_layout()
+        plt.tight_layout()
 
-    # Save figure
-    output_file = output_dir / "velocity_comparison.png"
-    plt.savefig(output_file, dpi=150, bbox_inches='tight')
-    print(f"Saved: {output_file}")
-    plt.close()
+        # Save figure for this robot
+        output_file = comparison_dir / f"robot_{rid}_comparison.png"
+        plt.savefig(output_file, dpi=150, bbox_inches='tight')
+        print(f"Saved: {output_file}")
+        plt.close()
+
+    print(f"Total {len(robot_ids)} individual comparison plots saved to {comparison_dir}")
 
 
 def plot_velocity_magnitude(robot_data, output_dir, robot_ids=None):
-    """Plot velocity magnitude comparison."""
+    """Plot velocity magnitude comparison for each robot in a separate figure."""
     if robot_ids is None:
         robot_ids = sorted(robot_data.keys())
 
-    robots_to_plot = robot_ids[:min(6, len(robot_ids))]
-
-    num_robots = len(robots_to_plot)
-    if num_robots == 0:
+    if len(robot_ids) == 0:
         return
 
-    # Create figure
-    fig, ax = plt.subplots(figsize=(12, 6))
+    # Create output subdirectory for individual magnitude plots
+    magnitude_dir = output_dir / "velocity_magnitude"
+    magnitude_dir.mkdir(exist_ok=True)
 
-    for rid in robots_to_plot:
+    # Plot each robot in its own figure
+    for rid in robot_ids:
+        if rid not in robot_data:
+            continue
+
         rd = robot_data[rid]
         time = np.array(rd['time'])
 
         cbf_mag = np.sqrt(np.array(rd['cbf_vx'])**2 + np.array(rd['cbf_vy'])**2)
         actual_mag = np.sqrt(np.array(rd['actual_vx'])**2 + np.array(rd['actual_vy'])**2)
 
-        ax.plot(time, cbf_mag, '-', label=f'Robot {rid} CBF', linewidth=1.5, alpha=0.8)
-        ax.plot(time, actual_mag, '--', label=f'Robot {rid} Actual', linewidth=1.5, alpha=0.8)
+        # Create figure for this robot
+        fig, ax = plt.subplots(figsize=(12, 6))
 
-    ax.set_xlabel('Time (s)')
-    ax.set_ylabel('Velocity Magnitude (m/s)')
-    ax.set_title('Velocity Magnitude Comparison (CBF Control vs Actual from Position)')
-    ax.legend(ncol=2, fontsize=8)
-    ax.grid(True, alpha=0.3)
+        ax.plot(time, cbf_mag, 'b-', label='CBF Control', linewidth=1.5)
+        ax.plot(time, actual_mag, 'r--', label='Actual (from position)', linewidth=1.5)
 
-    plt.tight_layout()
+        ax.set_xlabel('Time (s)')
+        ax.set_ylabel('Velocity Magnitude (m/s)')
+        ax.set_title(f'Robot {rid} - Velocity Magnitude Comparison')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
 
-    # Save figure
-    output_file = output_dir / "velocity_magnitude.png"
-    plt.savefig(output_file, dpi=150, bbox_inches='tight')
-    print(f"Saved: {output_file}")
-    plt.close()
+        plt.tight_layout()
+
+        # Save figure for this robot
+        output_file = magnitude_dir / f"robot_{rid}_magnitude.png"
+        plt.savefig(output_file, dpi=150, bbox_inches='tight')
+        print(f"Saved: {output_file}")
+        plt.close()
+
+    print(f"Total {len(robot_ids)} individual magnitude plots saved to {magnitude_dir}")
 
 
 def main():
