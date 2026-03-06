@@ -10,6 +10,7 @@ on_project_start: |
   bash src/cbf-ros2/scripts/patch_uav_speed.sh 50
   bash src/cbf-ros2/scripts/patch_geofence_height.sh 400
   bash src/cbf-ros2/scripts/patch_uav_thrust.sh 1.5
+  bash src/cbf-ros2/scripts/patch_uav_marker.sh
 
   # Recompile mbzirc_ign if any patches were applied
   if [ -f "$HOME/.uav_speed_patched" ] || [ -f "$HOME/.geofence_height_patched" ] || [ -f "$HOME/.uav_thrust_patched" ]; then
