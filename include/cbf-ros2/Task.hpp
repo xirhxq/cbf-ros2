@@ -163,8 +163,8 @@ private:
     void control_to_point(const Eigen::Vector3d &current_pose, const Eigen::Vector3d &target_pose) {
         Eigen::Vector3d delta = target_pose - current_pose;
 
-        double kp = 1.0;       // Increased from 0.2 for faster response
-        double max_speed = 25.0; // Increased from 5.0 to match simulation speed limit
+        double kp = 0.4;       // Increased from 0.2 for faster response
+        double max_speed = 10.0; // Increased from 5.0 to match simulation speed limit
         Eigen::Vector3d vel = kp * delta;
 
         if (vel.norm() > max_speed) {
