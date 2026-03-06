@@ -37,8 +37,8 @@ grep -n "maximumLinearAcceleration" "$MODEL_FILE" || true
 # Replace maximumLinearVelocity: 5 5 5 -> TARGET_SPEED
 sed -i "s/<maximumLinearVelocity>5 5 5</<maximumLinearVelocity>${TARGET_SPEED} ${TARGET_SPEED} ${TARGET_SPEED}</g" "$MODEL_FILE"
 
-# Replace maximumLinearAcceleration: 1 1 2 -> 10 10 2
-sed -i "s/<maximumLinearAcceleration>1 1 2</<maximumLinearAcceleration>10 10 2</g" "$MODEL_FILE"
+# Replace maximumLinearAcceleration: 1 1 2 -> 10 10 4
+sed -i "s/<maximumLinearAcceleration>1 1 2</<maximumLinearAcceleration>10 10 4</g" "$MODEL_FILE"
 
 # Show new values
 echo "[patch_uav_speed.sh] New limits:"
@@ -53,8 +53,8 @@ colcon build --packages-select mbzirc_ign --merge-install 2>&1 | tail -5
 
 if [ $? -eq 0 ]; then
     echo "[patch_uav_speed.sh] Patch applied successfully!"
-    echo "Speed limit: ${TARGET_SPEED} m/s, Acceleration: 10 10 2" > "$PATCH_MARKER"
+    echo "Speed limit: ${TARGET_SPEED} m/s, Acceleration: 10 10 4" > "$PATCH_MARKER"
 else
     echo "[patch_uav_speed.sh] Warning: Compilation may have issues"
-    echo "Speed limit: ${TARGET_SPEED} m/s, Acceleration: 10 10 2 (may have issues)" > "$PATCH_MARKER"
+    echo "Speed limit: ${TARGET_SPEED} m/s, Acceleration: 10 10 4 (may have issues)" > "$PATCH_MARKER"
 fi
