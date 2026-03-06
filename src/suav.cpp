@@ -23,6 +23,7 @@
 #include "cbf-ros2/SwarmController.hpp"
 #include "cbf-ros2/UAVCommNode.hpp"
 #include "cbf-ros2/Task.hpp"
+#include "cbf-ros2/Config.hpp"
 
 using namespace std::chrono_literals;
 
@@ -110,14 +111,15 @@ int main(int argc, char **argv) {
     std::vector<Eigen::Vector3d> initial_positions;
     if (cbf_config["initial"]["position"]["method"] == "specified") {
         for (const auto& pos : cbf_config["initial"]["position"]["positions"]) {
-            initial_positions.emplace_back(pos[0].get<double>(), pos[1].get<double>(), 50.0);
+            initial_positions.emplace_back(pos[0].get<double>(), pos[1].get<double>(),
+                                           cbf_ros2::config::altitude::INITIAL_HEIGHT_M);
         }
     }
 
     // Create task settings
     nlohmann::json task_settings = json::array();
     for (size_t i = 0; i < static_cast<size_t>(num_robots); ++i) {
-        double z = 200.0;  // Search height at 200m
+        double z = cbf_ros2::config::altitude::SEARCH_HEIGHT_M;
         task_settings.push_back({
             {"id", std::to_string(i + 1)},
             {"prepare_point", {initial_positions[i].x(), initial_positions[i].y(), z}}

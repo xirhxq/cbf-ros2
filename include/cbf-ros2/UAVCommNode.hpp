@@ -17,6 +17,7 @@
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "sensor_msgs/msg/imu.hpp"
 #include "cbf-ros2/Utils.h"
+#include "cbf-ros2/Config.hpp"
 
 class UAVCommNode : public rclcpp::Node {
 public:
@@ -70,13 +71,11 @@ public:
     void publish_velocity_earth(const Eigen::Vector3d &velocity, double yaw_rate = 0.0) {
         geometry_msgs::msg::Twist cmd;
 
-        // Velocity limits before e2b transformation (earth frame)
-        const double MAX_HORIZONTAL_VEL_EARTH = 15.0;  // m/s
-        const double MAX_VERTICAL_VEL_EARTH = 5.0;     // m/s
-
-        // Velocity limits after e2b transformation (body frame)
-        const double MAX_HORIZONTAL_VEL_BODY = 15.0;   // m/s
-        const double MAX_VERTICAL_VEL_BODY = 5.0;      // m/s
+        // Velocity limits from Config.hpp
+        const double MAX_HORIZONTAL_VEL_EARTH = cbf_ros2::config::velocity::MAX_HORIZONTAL_EARTH_MPS;
+        const double MAX_VERTICAL_VEL_EARTH = cbf_ros2::config::velocity::MAX_VERTICAL_EARTH_MPS;
+        const double MAX_HORIZONTAL_VEL_BODY = cbf_ros2::config::velocity::MAX_HORIZONTAL_BODY_MPS;
+        const double MAX_VERTICAL_VEL_BODY = cbf_ros2::config::velocity::MAX_VERTICAL_BODY_MPS;
 
         // Step 1: Limit velocity in earth frame before transformation
         double vx = velocity.x(), vy = velocity.y(), vz = velocity.z();

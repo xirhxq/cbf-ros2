@@ -13,6 +13,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "cbf-ros2/UAVCommNode.hpp"
 #include "cbf-ros2/Utils.h"
+#include "cbf-ros2/Config.hpp"
 
 class Task {
 public:
@@ -106,7 +107,7 @@ private:
             case State::INIT:
                 if (current_pose.norm() > 1e-3) {
                 spawn_point_ = current_pose;
-                takeoff_point_ = spawn_point_ + Eigen::Vector3d(0.0, 0.0, 20.0);
+                takeoff_point_ = spawn_point_ + Eigen::Vector3d(0.0, 0.0, cbf_ros2::config::altitude::TAKEOFF_HEIGHT_M);
                 transition_to(State::TAKEOFF);
             }
             yaw_rate_cmd_ = 0.0;
@@ -163,8 +164,8 @@ private:
     void control_to_point(const Eigen::Vector3d &current_pose, const Eigen::Vector3d &target_pose) {
         Eigen::Vector3d delta = target_pose - current_pose;
 
-        double kp = 0.4;       // Increased from 0.2 for faster response
-        double max_speed = 10.0; // Increased from 5.0 to match simulation speed limit
+        double kp = cbf_ros2::config::gains::KP_POSITION;
+        double max_speed = cbf_ros2::config::velocity::MAX_SPEED_MPS;
         Eigen::Vector3d vel = kp * delta;
 
         if (vel.norm() > max_speed) {
@@ -175,15 +176,15 @@ private:
     }
 
     void velocity2dControl(const Eigen::Vector3d &current_pose, const Eigen::Vector2d &velocity) {
-        double kp = 1.0;  // Increased from 0.2 for faster altitude response
+        double kp = cbf_ros2::config::gains::KP_ALTITUDE;
         velocity_cmd_ = Eigen::Vector3d(velocity.x(), velocity.y(), kp * (search_height_ - current_pose.z()));
     }
 
     void control_yaw_to_target(double current_yaw) {
         double yaw_error = normalizeAngle(target_yaw_ - current_yaw);
 
-        double kp_yaw = 1.0;
-        double max_yaw_rate = 1.0;
+        double kp_yaw = cbf_ros2::config::gains::KP_YAW;
+        double max_yaw_rate = cbf_ros2::config::velocity::MAX_YAW_RATE_RADPS;
 
         yaw_rate_cmd_ = kp_yaw * yaw_error;
 
@@ -192,11 +193,12 @@ private:
         }
     }
 
-    bool is_at_point(const Eigen::Vector3d &current_pose, const Eigen::Vector3d &target_pose, double tolerance = 0.5) {
+    bool is_at_point(const Eigen::Vector3d &current_pose, const Eigen::Vector3d &target_pose,
+                     double tolerance = cbf_ros2::config::tolerance::POSITION_M) {
         return (current_pose - target_pose).norm() < tolerance;
     }
 
-    bool is_at_yaw(double current_yaw, double tolerance = 0.1) {
+    bool is_at_yaw(double current_yaw, double tolerance = cbf_ros2::config::tolerance::YAW_RAD) {
         double yaw_error = normalizeAngle(target_yaw_ - current_yaw);
         return std::abs(yaw_error) < tolerance;
     }
