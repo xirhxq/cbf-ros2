@@ -70,14 +70,42 @@ public:
     void publish_velocity_earth(const Eigen::Vector3d &velocity, double yaw_rate = 0.0) {
         geometry_msgs::msg::Twist cmd;
 
-        // Full earth-to-body transformation
+        // Velocity limits before e2b transformation (earth frame)
+        const double MAX_HORIZONTAL_VEL_EARTH = 10.0;  // m/s
+        const double MAX_VERTICAL_VEL_EARTH = 2.0;     // m/s
+
+        // Velocity limits after e2b transformation (body frame)
+        const double MAX_HORIZONTAL_VEL_BODY = 10.0;   // m/s
+        const double MAX_VERTICAL_VEL_BODY = 2.0;      // m/s
+
+        // Step 1: Limit velocity in earth frame before transformation
         double vx = velocity.x(), vy = velocity.y(), vz = velocity.z();
+        double horizontal_speed = std::sqrt(vx * vx + vy * vy);
+        if (horizontal_speed > MAX_HORIZONTAL_VEL_EARTH) {
+            double scale = MAX_HORIZONTAL_VEL_EARTH / horizontal_speed;
+            vx *= scale;
+            vy *= scale;
+        }
+        if (std::abs(vz) > MAX_VERTICAL_VEL_EARTH) {
+            vz = std::copysign(MAX_VERTICAL_VEL_EARTH, vz);
+        }
+
+        // Step 2: Full earth-to-body transformation
         {
             std::lock_guard<std::mutex> lock(data_mutex_);
             earthToBody(vx, vy, vz, R_e2b_);
         }
 
-        // Note: No vertical velocity limiting - CBF already limits world frame velocity
+        // Step 3: Limit velocity in body frame after transformation
+        horizontal_speed = std::sqrt(vx * vx + vy * vy);
+        if (horizontal_speed > MAX_HORIZONTAL_VEL_BODY) {
+            double scale = MAX_HORIZONTAL_VEL_BODY / horizontal_speed;
+            vx *= scale;
+            vy *= scale;
+        }
+        if (std::abs(vz) > MAX_VERTICAL_VEL_BODY) {
+            vz = std::copysign(MAX_VERTICAL_VEL_BODY, vz);
+        }
 
         cmd.linear.x = vx;
         cmd.linear.y = vy;
