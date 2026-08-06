@@ -16,6 +16,7 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "rosgraph_msgs/msg/clock.hpp"
+#include "std_msgs/msg/bool.hpp"
 
 #include "ament_index_cpp/get_package_share_directory.hpp"
 #include "cbf-core.h"
@@ -103,6 +104,11 @@ int main(int argc, char **argv) {
             std::lock_guard<std::mutex> lock(g_time_mutex);
             g_sim_time = msg->clock.sec + msg->clock.nanosec / 1e9;
         });
+    // Latched publisher: signals EKF node to start ticking only once all UAVs
+    // reach PERFORM (so EKF does not accumulate epsilon during PREPARE, where
+    // UAVs are in a tight column with poor ranging geometry).
+    auto perform_trigger_pub = clock_node->create_publisher<std_msgs::msg::Bool>(
+        "/cbf/perform_started", rclcpp::QoS(1).transient_local());
 
     // 6. Create Tasks (UAV nodes) from config
     std::cout << "\n[Step 4] Creating UAV tasks..." << std::endl;
@@ -172,6 +178,10 @@ int main(int argc, char **argv) {
             if (perform_start_time == 0.0) {
                 perform_start_time = current_time;
                 swarm_ctrl.resetRuntime();
+                // Signal the EKF node to start ticking (latched).
+                std_msgs::msg::Bool trigger;
+                trigger.data = true;
+                perform_trigger_pub->publish(trigger);
                 std::cout << GREEN << "\n*** All UAVs in PERFORM state, starting CBF control ***" << RESET << std::endl;
             }
 

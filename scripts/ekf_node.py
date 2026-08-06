@@ -23,8 +23,10 @@ from pathlib import Path
 import numpy as np
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, QoSDurabilityPolicy
 from geometry_msgs.msg import PoseStamped
-from std_msgs.msg import Float64
+from std_msgs.msg import Float64, Bool
+from rosgraph_msgs.msg import Clock
 
 # Reuse the validated Python EKF from the paper/cbf2026-tvt reference copy.
 _HERE = Path(__file__).resolve().parent
@@ -62,6 +64,15 @@ class EkfNode(Node):
         # EKF service (initialized lazily on first full frame)
         self.service = None
 
+        # Gate: do not tick until suav signals PERFORM started. Otherwise epsilon
+        # accumulates during PREPARE (UAVs in a tight column with poor ranging
+        # geometry), producing an epsilon spike exactly when CBF begins.
+        self.perform_started = False
+        # Sim-time tracking for accurate predict dt (wall-clock timer interval is
+        # not exactly 0.5 s under load). The EKF predict uses the real elapsed
+        # sim time between ticks.
+        self.last_sim_time = None
+
         # Subscribers: groundtruth pose for each UAV
         self.pose_subs = {}
         for i in range(1, num_robots + 1):
@@ -69,6 +80,14 @@ class EkfNode(Node):
             self.pose_subs[i] = self.create_subscription(
                 PoseStamped, topic,
                 lambda msg, rid=i: self._pose_cb(msg, rid), 10)
+
+        # Latched trigger from suav: published once when all UAVs reach PERFORM.
+        self.create_subscription(
+            Bool, "/cbf/perform_started",
+            self._perform_trigger_cb,
+            QoSProfile(depth=1, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL))
+        # Sim clock for accurate predict dt.
+        self.create_subscription(Clock, "/clock", self._clock_cb, 10)
 
         # Publishers: estimated pose + epsilon for each UAV
         self.est_pubs = {}
@@ -79,23 +98,36 @@ class EkfNode(Node):
             self.eps_pubs[i] = self.create_publisher(
                 Float64, f"/uav_{i}/epsilon", 10)
 
-        # Timer at 2 Hz (control period)
+        # Timer at 2 Hz (control period). _tick is a no-op until perform_started.
         dt = params.get("dt", 0.5)
         self.create_timer(dt, self._tick)
 
         self.frame = 0
+        self.cur_sim_time = 0.0
         # Clear stale estimates log
         open("/tmp/ekf-estimates-log.jsonl", "w").close()
         self.get_logger().info(
-            f"EKF node started: {num_robots} robots, "
+            f"EKF node started (waiting for /cbf/perform_started): {num_robots} robots, "
             f"q={params.get('process_noise_mps', 3.0)}, "
             f"kappa={params.get('anchor_covariance_scale', 3.0)}")
+
+    def _perform_trigger_cb(self, msg: Bool):
+        if msg.data and not self.perform_started:
+            self.perform_started = True
+            self.last_sim_time = None  # reset so first tick dt is ~0
+            self.get_logger().info("PERFORM trigger received, starting EKF ticks")
+
+    def _clock_cb(self, msg: Clock):
+        self.cur_sim_time = msg.clock.sec + msg.clock.nanosec / 1e9
 
     def _pose_cb(self, msg, robot_id):
         self.truth_pos[robot_id] = np.asarray(
             [msg.pose.position.x, msg.pose.position.y], dtype=float)
 
     def _tick(self):
+        # Gate on PERFORM trigger so epsilon does not accumulate during PREPARE.
+        if not self.perform_started:
+            return
         # Need all robots' positions
         if len(self.truth_pos) < self.num_robots:
             return
@@ -103,10 +135,15 @@ class EkfNode(Node):
         ids = sorted(self.truth_pos.keys())
         positions = {rid: self.truth_pos[rid] for rid in ids}
 
-        # Compute truth velocity (frame-to-frame difference)
+        # Real sim-time dt since last tick (fall back to nominal if clock missing).
+        sim_dt = self.params.get("dt", 0.5)
+        if self.last_sim_time is not None:
+            sim_dt = max(self.cur_sim_time - self.last_sim_time, 1e-3)
+        self.last_sim_time = self.cur_sim_time
+
+        # Compute truth velocity (frame-to-frame difference) using real sim dt
         if self.prev_truth_pos:
-            dt = self.params.get("dt", 0.5)
-            held = {rid: ((positions[rid] - self.prev_truth_pos[rid]) / dt).tolist()
+            held = {rid: ((positions[rid] - self.prev_truth_pos[rid]) / sim_dt).tolist()
                     for rid in ids if rid in self.prev_truth_pos}
         else:
             held = {rid: [0.0, 0.0] for rid in ids}
@@ -127,6 +164,9 @@ class EkfNode(Node):
                 range0=self.params.get("range0", 850.0),
             )
             self.get_logger().info(f"EKF initialized on {len(ids)} robots")
+        # Override the service's fixed dt with the real sim dt for this step's
+        # predict (mean += v*dt, cov += (q*dt)^2).
+        self.service.dt = sim_dt
 
         # Build references from formation topology
         # Simple ladder formation (matching config):
