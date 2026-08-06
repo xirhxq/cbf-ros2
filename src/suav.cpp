@@ -183,27 +183,21 @@ int main(int argc, char **argv) {
                 }
             }
 
-            // Get all UAV positions — use EKF estimated positions when available.
+            // Get all UAV positions — always use truth for CBF geometry.
+            // EKF epsilon is set as uncertainty margin for safety constraints.
+            // comm-fixed uses truth position directly (consider-uncertainty=false)
+            // → guarantees truth comm dist ≤ 850m.
+            // safety uses truth position + uncertainty margin (consider-uncertainty=true)
+            // → robust against estimation error.
             std::vector<Eigen::Vector3d> positions(tasks.size());
             for (size_t i = 0; i < tasks.size(); ++i) {
-                positions[i] = tasks[i]->getPosition();  // truth by default
+                positions[i] = tasks[i]->getPosition();  // truth
                 swarm_ctrl.updateYawFromSim(i, tasks[i]->getYaw());
             }
-            // When EKF estimates are available, replace positions with estimates
-            // and set uncertainty (epsilon) on each robot for CBF constraint margin.
-            bool useEstimates = false;
+            // Set EKF epsilon as uncertainty margin for safety constraints
             for (size_t i = 0; i < tasks.size(); ++i) {
                 if (tasks[i]->hasEstimatedPosition()) {
-                    useEstimates = true;
-                    break;
-                }
-            }
-            if (useEstimates) {
-                for (size_t i = 0; i < tasks.size(); ++i) {
-                    if (tasks[i]->hasEstimatedPosition()) {
-                        positions[i] = tasks[i]->getEstimatedPosition();
-                        swarm_ctrl.setCurrentUncertainty(i, tasks[i]->getEpsilon());
-                    }
+                    swarm_ctrl.setCurrentUncertainty(i, tasks[i]->getEpsilon());
                 }
             }
             std::vector<std::pair<double, double>> velocities;
