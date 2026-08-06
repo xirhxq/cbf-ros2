@@ -1,0 +1,62 @@
+# tmuxinator.headless.yml - Headless (no GUI) MBZIRC + CBF session.
+#
+# Same as tmuxinator.cbf-ros2.yml but:
+#   - Ignition runs server-only: ign_args adds "-s" (no GUI client, no X11 needed).
+#   - Optional EKF window (uncomment in stage 2 for estimator-in-loop).
+#
+# Launch inside the container from /home/developer/cbf_ws:
+#   tmuxinator start . -p src/cbf-ros2/tmuxinator.headless.yml
+#
+# End session: Ctrl+B then q (per .tmux.conf), or `tmux kill-session -t cbf-ros2`.
+
+name: cbf-ros2
+root: .
+tmux_options: -f .tmux.conf
+on_project_start: |
+  set -e
+  colcon build
+
+  # Patch MBZIRC settings (only runs once due to marker files)
+  bash src/cbf-ros2/scripts/patch_uav_speed.sh 50
+  bash src/cbf-ros2/scripts/patch_geofence_height.sh 400
+  bash src/cbf-ros2/scripts/patch_uav_thrust.sh 1.5
+  bash src/cbf-ros2/scripts/patch_uav_marker.sh
+
+  # Recompile mbzirc_ign if any patches were applied
+  if [ -f "$HOME/.uav_speed_patched" ] || [ -f "$HOME/.geofence_height_patched" ] || [ -f "$HOME/.uav_thrust_patched" ]; then
+    echo "Recompiling mbzirc_ign..."
+    bash -c 'cd ~/mbzirc_ws && source /opt/ros/galactic/setup.bash && colcon build --packages-select mbzirc_ign --merge-install'
+  fi
+windows:
+  - suav-and-launch:
+      panes:
+        - monitor:
+            - . install/setup.bash
+            - . src/cbf-ros2/scripts/setenv.sh
+            - sleep 25
+            - ros2 run cbf-ros2 monitor $UAV_NUM
+        - suav:
+            - . install/setup.bash
+            - . src/cbf-ros2/scripts/setenv.sh
+            - sleep 20
+            - ros2 run cbf-ros2 suav
+        - simulation:
+            # -s = server-only (headless, no GUI client). -r = run immediately.
+            - source /opt/ros/galactic/setup.bash
+            - ros2 launch mbzirc_ros competition_local.launch.py ign_args:="-v 4 -r -s coast.sdf"
+        - spawn:
+            - . install/setup.bash
+            - . src/cbf-ros2/scripts/setenv.sh
+            - ros2 launch cbf-ros2 spawn_headless.launch.py numbers:=$UAV_NUM
+        - pose-bridge:
+            - . install/setup.bash
+            - . src/cbf-ros2/scripts/setenv.sh
+            - ros2 run cbf-ros2 pose_bridge $UAV_NUM
+        # --- Stage 2 (EKF in-loop): uncomment this pane to run the Python EKF ---
+        # - ekf:
+        #     - mkdir -p /dev/shm/estimator
+        #     - rm -f /dev/shm/estimator/state.json /dev/shm/estimator/state.json.ready /dev/shm/estimator/estimates.json
+        #     - python3 src/cbf-ros2/scripts/ekf_service_mbzirc.py \
+        #         --state-path /dev/shm/estimator/state.json \
+        #         --estimates-path /dev/shm/estimator/estimates.json \
+        #         --bases "$(python3 -c 'import json;print(json.dumps(json.load(open("src/cbf-ros2/cbf/config/config.json"))["bases"]))')"
