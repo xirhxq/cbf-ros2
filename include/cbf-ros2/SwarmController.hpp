@@ -113,23 +113,7 @@ public:
     void setCurrentUncertainty(int robot_index, double epsilon) {
         if (swarm_initialized_ && robot_index >= 0
             && robot_index < (int)swarm_->robots.size()) {
-            auto& robot = swarm_->robots[robot_index];
-            // Self-side epsilon: read by Robot::postsetCBF() via both
-            // `currentUncertainty` (when estimatorInLoop=false) and
-            // `estimatorEpsilon` (when estimatorInLoop=true). Set both so the
-            // robust margin is active regardless of which branch the ROS2 path
-            // takes.
-            robot->currentUncertainty = epsilon;
-            robot->estimatorEpsilon = epsilon;
-            // Neighbour-side epsilon: Robot::postsetCBF() derives the peer's
-            // uncertainty from `uncertaintyFromCovarianceFunction(positionCovariance)`
-            // = 3*sqrt(lambda_max). To recover `epsilon` from that, set
-            // Sigma = (epsilon/3)^2 * I  =>  lambda_max = (epsilon/3)^2
-            // => 3*sqrt(lambda_max) = epsilon. exchangeData() then broadcasts
-            // this covariance so peers see the same margin on their edges to us.
-            const double s = (epsilon > 0.0) ? (epsilon / 3.0) : 0.0;
-            const double v = s * s;
-            robot->positionCovariance << v, 0.0, 0.0, v;
+            swarm_->robots[robot_index]->currentUncertainty = epsilon;
         }
     }
 
