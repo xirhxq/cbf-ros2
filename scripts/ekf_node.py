@@ -151,10 +151,19 @@ class EkfNode(Node):
             held_commands=held,
         )
 
-        # Publish estimates
+        # Publish estimates + log for containment analysis
         fresh_count = 0
+        log_entries = []
         for rid in ids:
             out = outputs[rid]
+            truth = positions[rid]
+            est = out["estimate"]
+            err = float(np.hypot(truth[0] - est[0], truth[1] - est[1]))
+            eps = out["epsilon"]
+            log_entries.append({
+                "id": rid, "truth": truth.tolist(), "estimate": est,
+                "epsilon": eps, "error": err, "tier": out["tier"]
+            })
             est_msg = PoseStamped()
             est_msg.header.stamp = self.get_clock().now().to_msg()
             est_msg.header.frame_id = "world"
@@ -174,6 +183,11 @@ class EkfNode(Node):
         if self.frame % 100 == 0:
             self.get_logger().info(
                 f"frame {self.frame}: fresh={fresh_count}/{len(ids)}")
+
+        # Write estimates log for containment analysis
+        import json as _json
+        with open("/tmp/ekf-estimates-log.jsonl", "a") as f:
+            f.write(_json.dumps({"frame": self.frame, "robots": log_entries}) + "\n")
 
         self.frame += 1
 
