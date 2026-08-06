@@ -16,6 +16,7 @@
 #include "geometry_msgs/msg/twist.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "sensor_msgs/msg/imu.hpp"
+#include "std_msgs/msg/float64.hpp"
 #include "cbf-ros2/Utils.h"
 #include "cbf-ros2/Config.hpp"
 
@@ -43,6 +44,21 @@ public:
                 double roll, pitch, yaw;
                 quaternionToEuler(q.w, q.x, q.y, q.z, roll, pitch, yaw);
                 eulerToDcm(roll, pitch, yaw, R_e2b_);
+            });
+
+        // EKF estimated position + epsilon subscriptions
+        est_pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+            "uav_" + id_ + "/pose/estimated", 10,
+            [this](const geometry_msgs::msg::PoseStamped::SharedPtr msg) {
+                std::lock_guard<std::mutex> lock(data_mutex_);
+                last_est_pose_ = *msg;
+                has_est_pose_ = true;
+            });
+        est_eps_sub_ = this->create_subscription<std_msgs::msg::Float64>(
+            "uav_" + id_ + "/epsilon", 10,
+            [this](const std_msgs::msg::Float64::SharedPtr msg) {
+                std::lock_guard<std::mutex> lock(data_mutex_);
+                epsilon_ = msg->data;
             });
 
         // Initialize rotation matrix to identity
@@ -135,13 +151,32 @@ public:
         return yaw_;
     }
 
+    bool hasEstimatedPosition() const {
+        std::lock_guard<std::mutex> lock(data_mutex_);
+        return has_est_pose_;
+    }
+    Eigen::Vector3d get_estimated_position() const {
+        std::lock_guard<std::mutex> lock(data_mutex_);
+        return Eigen::Vector3d(last_est_pose_.pose.position.x,
+                               last_est_pose_.pose.position.y, 0.0);
+    }
+    double get_epsilon() const {
+        std::lock_guard<std::mutex> lock(data_mutex_);
+        return epsilon_;
+    }
+
 private:
     rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr vel_cmd_pub_;
     rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_sub_;
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
+    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr est_pose_sub_;
+    rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr est_eps_sub_;
 
     std::string id_;
     double yaw_;
+    geometry_msgs::msg::PoseStamped last_est_pose_;
+    bool has_est_pose_ = false;
+    double epsilon_ = 0.0;
 
     mutable std::mutex data_mutex_;
     geometry_msgs::msg::PoseStamped last_pose_;

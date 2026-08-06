@@ -83,6 +83,16 @@ public:
         return uav_comm_->get_yaw();
     }
 
+    bool hasEstimatedPosition() const {
+        return uav_comm_->hasEstimatedPosition();
+    }
+    Eigen::Vector3d getEstimatedPosition() const {
+        return uav_comm_->get_estimated_position();
+    }
+    double getEpsilon() const {
+        return uav_comm_->get_epsilon();
+    }
+
     Eigen::Vector3d getBodyVelocity() const {
         return uav_comm_->get_last_body_vel();
     }

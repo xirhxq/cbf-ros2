@@ -183,14 +183,29 @@ int main(int argc, char **argv) {
                 }
             }
 
-            // Get all UAV positions
+            // Get all UAV positions — use EKF estimated positions when available.
             std::vector<Eigen::Vector3d> positions(tasks.size());
             for (size_t i = 0; i < tasks.size(); ++i) {
-                positions[i] = tasks[i]->getPosition();
+                positions[i] = tasks[i]->getPosition();  // truth by default
                 swarm_ctrl.updateYawFromSim(i, tasks[i]->getYaw());
             }
-
-            // Collect velocities for injection
+            // When EKF estimates are available, replace positions with estimates
+            // and set uncertainty (epsilon) on each robot for CBF constraint margin.
+            bool useEstimates = false;
+            for (size_t i = 0; i < tasks.size(); ++i) {
+                if (tasks[i]->hasEstimatedPosition()) {
+                    useEstimates = true;
+                    break;
+                }
+            }
+            if (useEstimates) {
+                for (size_t i = 0; i < tasks.size(); ++i) {
+                    if (tasks[i]->hasEstimatedPosition()) {
+                        positions[i] = tasks[i]->getEstimatedPosition();
+                        swarm_ctrl.setCurrentUncertainty(i, tasks[i]->getEpsilon());
+                    }
+                }
+            }
             std::vector<std::pair<double, double>> velocities;
             for (size_t i = 0; i < positions.size(); ++i) {
                 Eigen::Vector3d ctrl = swarm_ctrl.getControl(i);

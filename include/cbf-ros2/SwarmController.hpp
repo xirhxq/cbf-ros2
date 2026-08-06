@@ -110,6 +110,13 @@ public:
         }
     }
 
+    void setCurrentUncertainty(int robot_index, double epsilon) {
+        if (swarm_initialized_ && robot_index >= 0
+            && robot_index < (int)swarm_->robots.size()) {
+            swarm_->robots[robot_index]->currentUncertainty = epsilon;
+        }
+    }
+
     void updateYawFromSim(int robot_index, double sim_yaw) {
         if (robot_index >= 0 && robot_index < static_cast<int>(uav_yaws_.size())) {
             uav_yaws_[robot_index] = sim_yaw;

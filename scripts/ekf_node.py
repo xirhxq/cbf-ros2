@@ -84,6 +84,8 @@ class EkfNode(Node):
         self.create_timer(dt, self._tick)
 
         self.frame = 0
+        # Clear stale estimates log
+        open("/tmp/ekf-estimates-log.jsonl", "w").close()
         self.get_logger().info(
             f"EKF node started: {num_robots} robots, "
             f"q={params.get('process_noise_mps', 3.0)}, "
@@ -184,7 +186,7 @@ class EkfNode(Node):
             self.get_logger().info(
                 f"frame {self.frame}: fresh={fresh_count}/{len(ids)}")
 
-        # Write estimates log for containment analysis
+        # Write estimates log for containment analysis (overwrite mode, cleared on init)
         import json as _json
         with open("/tmp/ekf-estimates-log.jsonl", "a") as f:
             f.write(_json.dumps({"frame": self.frame, "robots": log_entries}) + "\n")
