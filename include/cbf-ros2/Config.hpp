@@ -16,11 +16,11 @@ namespace altitude {
 }
 
 namespace velocity {
-    constexpr double MAX_HORIZONTAL_EARTH_MPS = 20.0;
+    constexpr double MAX_HORIZONTAL_EARTH_MPS = 25.0;
     constexpr double MAX_VERTICAL_EARTH_MPS = 15.0;
-    constexpr double MAX_HORIZONTAL_BODY_MPS = 20.0;
+    constexpr double MAX_HORIZONTAL_BODY_MPS = 25.0;
     constexpr double MAX_VERTICAL_BODY_MPS = 15.0;
-    constexpr double MAX_SPEED_MPS = 20.0;
+    constexpr double MAX_SPEED_MPS = 25.0;
     constexpr double MAX_YAW_RATE_RADPS = 1.0;
 }
 
